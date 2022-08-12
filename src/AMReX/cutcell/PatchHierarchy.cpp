@@ -188,6 +188,64 @@ Polygon_2 GetHGridPolygonAtBoundary(const CutCellData<2>& geom,
   return polygon;
 }
 
+Polygon_2 GetHGridPolygonInner(const CutCellData<2>& geom,
+                                    const Index<2>& index,
+                                    const Eigen::Vector2d& dx, Direction dir) {
+  FUB_ASSERT(dir == Direction::X || dir == Direction::Y);
+  const auto ix = static_cast<std::size_t>(dir);
+  const auto iy = 1 - ix;
+  const Index<AMREX_SPACEDIM> fL = index;
+  const Index<AMREX_SPACEDIM> fR = Shift(index, dir, 1);
+  const Index<AMREX_SPACEDIM> gR = Shift(index, Direction(iy), 1);
+  const double betaL = geom.face_fractions[ix](fL);
+  const double betaR = geom.face_fractions[ix](fR);
+  const double betaLy = geom.face_fractions[iy](fL);
+  const double betaRy = geom.face_fractions[iy](gR);
+  const Coordinates<AMREX_SPACEDIM> xB =
+      GetAbsoluteBoundaryCentroid(geom, index, dx);
+  const Coordinates<AMREX_SPACEDIM> xN = GetBoundaryNormal(geom, index);
+
+  const double dBeta_x = betaR - betaL;
+  const double dBeta_y = betaRy - betaLy;
+
+  if (dBeta_x == 0 && dBeta_y == 0) {
+    return {};
+  }
+
+  const int sign = (dBeta_x > 0) - (dBeta_x < 0);
+  Eigen::Vector2d xR = xB;
+  xR[ix] += sign * dx[ix];
+
+  Eigen::Vector2d xRL = xR;
+  Eigen::Vector2d xRR = xR;
+  Eigen::Vector2d xLL = xB;
+  Eigen::Vector2d xLR = xB;
+
+  xRR[iy] += 0.5 * dBeta_x * dx[iy];
+  xLR[iy] += 0.5 * dBeta_x * dx[iy];
+
+  xLL[iy] -= 0.5 * dBeta_x * dx[iy];
+  xRL[iy] -= 0.5 * dBeta_x * dx[iy];
+
+  xLL[ix] += 0.5 * dBeta_y * dx[ix];
+  xLR[ix] -= 0.5 * dBeta_y * dx[ix];
+
+  std::vector<Point_2> points{};
+  points.push_back(Point_2{xLL[0], xLL[1]});
+  points.push_back(Point_2{xLR[0], xLR[1]});
+  points.push_back(Point_2{xRL[0], xRL[1]});
+  points.push_back(Point_2{xRR[0], xRR[1]});
+
+  Polygon_2 polygon{};
+  CGAL::convex_hull_2(points.begin(), points.end(),
+                      std::back_inserter(polygon));
+
+  if (polygon.size() < 3) {
+    return Polygon_2{};
+  }
+  return polygon;
+}
+
 Point_2 Centroid(const Polygon_2& polygon)
 {
   FUB_ASSERT(polygon.size() >= 3);
@@ -213,20 +271,25 @@ Point_2 Centroid(const Polygon_2& polygon)
   return Point_2{total_center_x, total_center_y};
 }
 
+template <typename... Polygons>
+Polygon_2 ConvexHull(const Polygons&... ps)
+{
+  std::vector<Point_2> points;
+  points.reserve((0 + ps.size())...);
+  (std::copy(ps.vertices_begin(), ps.vertices_end(), std::back_inserter(points)), ...);
+  Polygon_2 polygon{};
+  CGAL::convex_hull_2(points.begin(), points.end(),
+                      std::back_inserter(polygon));
+  return polygon;
+}
+
 HGridIntegrationPoints<AMREX_SPACEDIM>
 ComputeIntegrationPoints(const Index<AMREX_SPACEDIM>& index,
                          const CutCellData<AMREX_SPACEDIM>& geom,
-                         const Coordinates<AMREX_SPACEDIM>& dx, Direction dir) {
-  // Fill aux data for the cut-cell itself
+                         const Coordinates<AMREX_SPACEDIM>& dx, const Polygon_2& hgrid_polygon) {
   HGridIntegrationPoints<2> integration{};
   integration.xB = GetAbsoluteBoundaryCentroid(geom, index, dx);
   integration.iB = index;
-  const Polygon_2 hgrid_polygon =
-      GetHGridPolygonAtBoundary(geom, index, dx, dir);
-  if (hgrid_polygon.is_empty() || !hgrid_polygon.is_simple() ||
-      !hgrid_polygon.is_convex()) {
-    return integration;
-  }
   int count = 0;
   ForEachIndex(Neighborhood<AMREX_SPACEDIM>(index, 1), [&](auto... is) {
     Index<AMREX_SPACEDIM> i{is...};
@@ -252,6 +315,57 @@ ComputeIntegrationPoints(const Index<AMREX_SPACEDIM>& index,
     }
   });
   return integration;
+  }
+
+HGridIntegrationPoints<AMREX_SPACEDIM>
+ComputeIntegrationPoints(const Index<AMREX_SPACEDIM>& index,
+                         const CutCellData<AMREX_SPACEDIM>& geom,
+                         const Coordinates<AMREX_SPACEDIM>& dx, Direction dir) {
+  // Fill aux data for the cut-cell itself
+  HGridIntegrationPoints<2> integration{};
+  integration.xB = GetAbsoluteBoundaryCentroid(geom, index, dx);
+  integration.iB = index;
+  const Polygon_2 hgrid_polygon =
+      GetHGridPolygonAtBoundary(geom, index, dx, dir);
+  if (hgrid_polygon.is_empty() || !hgrid_polygon.is_simple() ||
+      !hgrid_polygon.is_convex()) {
+    return integration;
+  }
+  return ComputeIntegrationPoints(index, geom, dx, hgrid_polygon);
+}
+
+Polygon_2 GetTotalInnerPolygon(const Index<AMREX_SPACEDIM>& index,
+                         const CutCellData<AMREX_SPACEDIM>& geom,
+                         const Coordinates<AMREX_SPACEDIM>& dx)
+{
+  const Polygon_2 inner_polygon_x =
+      GetHGridPolygonInner(geom, index, dx, Direction::X);
+  const Polygon_2 hgrid_polygon_x =
+      GetHGridPolygonAtBoundary(geom, index, dx, Direction::X);
+  const Polygon_2 inner_polygon_y =
+      GetHGridPolygonInner(geom, index, dx, Direction::Y);
+  const Polygon_2 hgrid_polygon_y =
+      GetHGridPolygonAtBoundary(geom, index, dx, Direction::Y);
+
+  const Polygon_2 polygon = ConvexHull(inner_polygon_x, inner_polygon_y, hgrid_polygon_x, hgrid_polygon_y);
+
+  return polygon;
+}
+
+HGridIntegrationPoints<AMREX_SPACEDIM>
+ComputeIntegrationPoints(const Index<AMREX_SPACEDIM>& index,
+                         const CutCellData<AMREX_SPACEDIM>& geom,
+                         const Coordinates<AMREX_SPACEDIM>& dx) {
+  // Fill aux data for the cut-cell itself
+  HGridIntegrationPoints<2> integration{};
+  integration.xB = GetAbsoluteBoundaryCentroid(geom, index, dx);
+  integration.iB = index;
+  const Polygon_2 polygon = GetTotalInnerPolygon(index, geom, dx);
+  if (polygon.is_empty() || !polygon.is_simple() ||
+      !polygon.is_convex()) {
+    return integration;
+  }
+  return ComputeIntegrationPoints(index, geom, dx, polygon);
 }
 
 } // namespace

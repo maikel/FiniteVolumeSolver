@@ -48,11 +48,12 @@ public:
   MyFluxMethod(Tag, const Base& fm);
   MyFluxMethod(Tag, Base&& fm);
 
-  MyFluxMethod(const MyFluxMethod& other) : flux_method_(other.flux_method_) {}
+  MyFluxMethod(const MyFluxMethod& other) : flux_method_(other.flux_method_), complete_from_cons_(flux_method_->GetEquation()) {}
   MyFluxMethod(MyFluxMethod&& other) = default;
 
   MyFluxMethod& operator=(const MyFluxMethod& other) {
     flux_method_ = other.flux_method_;
+    complete_from_cons_ = other.complete_from_cons_;
   }
   MyFluxMethod& operator=(MyFluxMethod&& other) = default;
 
@@ -91,6 +92,7 @@ public:
 private:
   Local<Tag, Base> flux_method_;
   TimeIntegrator2 time_integrator_;
+  Reconstruction<Tag, Equation> complete_from_cons_;
   std::array<::amrex::MultiFab, 3> gradients_{};
 };
 
@@ -102,11 +104,11 @@ MyFluxMethod(Tag, FM&&) -> MyFluxMethod<Tag, std::decay_t<FM>>;
 
 template <typename Tag, typename FM>
 MyFluxMethod<Tag, FM>::MyFluxMethod(Tag, FM&& flux_method)
-    : flux_method_(std::move(flux_method)) {}
+    : flux_method_(std::move(flux_method)), complete_from_cons_(flux_method_->GetEquation()) {}
 
 template <typename Tag, typename FM>
 MyFluxMethod<Tag, FM>::MyFluxMethod(Tag, const FM& flux_method)
-    : flux_method_(flux_method) {}
+    : flux_method_(flux_method), complete_from_cons_(flux_method_->GetEquation()) {}
 
 template <typename Tag, typename FM>
 constexpr int MyFluxMethod<Tag, FM>::GetStencilWidth() noexcept {
@@ -123,23 +125,33 @@ void MyFluxMethod<Tag, FM>::PreSplitStep(IntegratorContext& context, int level,
                                          Duration dt, Direction dir,
                                          std::pair<int, int> subcycle) {
   const ::amrex::MultiFab& scratch = context.GetScratch(level);
-  if ((subcycle.first % AMREX_SPACEDIM) != 0) {
-    return;
+  const ::amrex::BoxArray ba = scratch.boxArray();
+  const ::amrex::DistributionMapping dm = scratch.DistributionMap();
+  const int ncons = context.GetFluxes(level, Direction::X).nComp();
+  const ::amrex::IntVect ngrow = scratch.nGrowVect();
+  for (::amrex::MultiFab& gradient : gradients_) {
+    gradient.define(ba, dm, ncons, ngrow);
+    gradient.setVal(0.0);
+  }
+  ::amrex::MultiFab pre_scratch;
+  if ((subcycle.first % AMREX_SPACEDIM) == 0) {
+    ::amrex::MultiFab& references = context.GetReferenceStates(level);
+    references.setVal(0.0);
+    const int ncomp = scratch.nComp();
+    const int ngrow = scratch.nGrow();
+    pre_scratch.define(scratch.boxArray(), scratch.DistributionMap(), ncomp, ngrow);
+    pre_scratch.ParallelCopy(scratch, 0, 0, ncomp, ngrow, ngrow);
+    IntegrateInTime(context, pre_scratch, scratch, level, 0.5 * dt, dir);
+    for (int d = 1; d < AMREX_SPACEDIM; ++d) {
+      Direction dir_y = Direction((int(dir) + 1) % AMREX_SPACEDIM);
+      IntegrateInTime(context, pre_scratch, pre_scratch, level, 0.5 * dt, dir_y);
+    }
   }
   ComputeGradients(context, scratch, level);
-  ::amrex::MultiFab& references = context.GetReferenceStates(level);
-  references.setVal(0.0);
-  const int ncomp = scratch.nComp();
-  const int ngrow = scratch.nGrow();
-  ::amrex::MultiFab pre_scratch(scratch.boxArray(), scratch.DistributionMap(),
-                                ncomp, ngrow);
-  pre_scratch.ParallelCopy(scratch, 0, 0, ncomp, ngrow, ngrow);
-  IntegrateInTime(context, pre_scratch, scratch, level, 0.5 * dt, dir);
-  for (int d = 1; d < AMREX_SPACEDIM; ++d) {
-    Direction dir_y = Direction((int(dir) + 1) % AMREX_SPACEDIM);
-    IntegrateInTime(context, pre_scratch, pre_scratch, level, 0.5 * dt, dir_y);
+  if ((subcycle.first % AMREX_SPACEDIM) == 0) {
+    ::amrex::MultiFab& references = context.GetReferenceStates(level);
+    ComputeReferenceStates(context, references, pre_scratch, scratch, level, dt, dir);
   }
-  ComputeReferenceStates(context, references, pre_scratch, scratch, level, dt, dir);
 }
 
 template <typename Tag, typename FM>
@@ -233,6 +245,7 @@ void MyFluxMethod<Tag, FM>::IntegrateInTime(IntegratorContext& context,
                                             Direction dir) {
   ComputeNumericFluxes(context, source, level, dt, dir);
   time_integrator_.UpdateConservatively(dest, source, context, level, dt, dir);
+  complete_from_cons_.CompleteFromCons(context, dest ,source, level, dt);
 }
 
 template <typename Tag, typename FM>

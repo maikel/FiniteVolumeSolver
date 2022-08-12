@@ -230,11 +230,11 @@ void MusclHancock2<Equation, GradientMethod, ReconstructionMethod, BaseMethod>::
   flux_method_.ComputeNumericFlux(flux, face_fractions, reconstruction_array_,
                                   volume_fractions, dt, dx, dir);
   
-  MaskArray mask = (face_fractions > 0);
-  ForEachComponent(
-      [&](auto&& f) { 
-        f = mask.select(f, 0);
-        FUB_ASSERT(!f.isNaN().any()); }, flux);
+  // MaskArray mask = (face_fractions > 0);
+  // ForEachComponent(
+  //     [&](auto&& f) { 
+  //       f = mask.select(f, 0);
+  //       FUB_ASSERT(!f.isNaN().any()); }, flux);
 }
 
 } // namespace fub

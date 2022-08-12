@@ -43,6 +43,8 @@ struct HGridIntegrationPoints {
     Coordinates<Rank> xB{};
 };
 
+Coordinates<2> Centroid(const HGridIntegrationPoints<2>& polygon);
+
 template <int Rank> struct CutCellData {
   static constexpr auto sRank = static_cast<std::size_t>(Rank);
 

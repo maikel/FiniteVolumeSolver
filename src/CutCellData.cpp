@@ -21,7 +21,20 @@
 #include "fub/CutCellData.hpp"
 #include "fub/PatchDataView.hpp"
 
+#include <CGAL/Boolean_set_operations_2.h>
+#include <CGAL/Polygon_2.h>
+#include <CGAL/Polygon_2_algorithms.h>
+#include <CGAL/Polygon_with_holes_2.h>
+#include <CGAL/Simple_cartesian.h>
+#include <CGAL/convex_hull_2.h>
+
 namespace fub {
+
+using K = CGAL::Exact_predicates_exact_constructions_kernel;
+using Point_2 = K::Point_2;
+using Polygon_2 = CGAL::Polygon_2<K>;
+using Polygon_with_holes_2 = CGAL::Polygon_with_holes_2<K>;
+
 
 HGridIntegrationPoints<2> GetHGridIntegrationPoints(const CutCellData<2>& geom, Index<2> index, const Coordinates<2>& dx, Direction dir)
 {
@@ -41,6 +54,25 @@ HGridIntegrationPoints<2> GetHGridIntegrationPoints(const CutCellData<2>& geom, 
     std::memcpy(&integration_points.index[i][1], ptr_y, sizeof(double));
   }
   return integration_points;
+}
+
+Coordinates<2> Centroid(const HGridIntegrationPoints<2>& integration)
+{
+  K::FT total_area = 0;
+  K::FT total_center_x = 0;
+  K::FT total_center_y = 0;
+  constexpr auto size = HGridIntegrationPoints<2>::kMaxSources;
+  for (int i = 0; i < size && integration.volume[i] > 0.0; ++i)
+  {
+    total_center_x += integration.volume[i] * integration.xM[i][0];
+    total_center_y += integration.volume[i] * integration.xM[i][1];
+    total_area += integration.volume[i];
+  }
+  total_center_x /= total_area;
+  total_center_y /= total_area;
+  const double x = total_center_x.exact().convert_to<double>();
+  const double y = total_center_y.exact().convert_to<double>();
+  return Coordinates<2>{x, y};
 }
 
 Eigen::Vector2d GetBoundaryNormal(const CutCellData<2>& ccdata,

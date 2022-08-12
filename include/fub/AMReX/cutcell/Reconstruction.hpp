@@ -42,6 +42,9 @@ template <typename Tag, typename Equation> struct Reconstruction {
   void CompleteFromCons(IntegratorContext& context, int level,
                         [[maybe_unused]] Duration dt);
 
+  void CompleteFromCons(IntegratorContext& context, ::amrex::MultiFab& dest, const ::amrex::MultiFab& src, int level,
+                        [[maybe_unused]] Duration dt);
+
   Local<Tag, detail::ReconstructionKernel<Equation, IsSimd>> kernel_;
 };
 
@@ -170,6 +173,31 @@ void Reconstruction<Tag, Equation>::CompleteFromCons(IntegratorContext& context,
   const ::amrex::MultiFab& volumes =
       context.GetEmbeddedBoundary(level).getVolFrac();
   const ::amrex::MultiFab& src = context.GetScratch(level);
+
+  ForEachFab(Tag(), dest, [&](const ::amrex::MFIter& mfi) {
+    const ::amrex::Box box = mfi.growntilebox();
+    auto state =
+        MakeView<Complete<Equation>>(dest[mfi], kernel_->equation_, box);
+    auto scratch = MakeView<const Conservative<Equation>>(
+        src[mfi], kernel_->equation_, box);
+    ::amrex::FabType type =
+        context.GetEmbeddedBoundary(level).getMultiEBCellFlagFab()[mfi].getType(
+            box);
+    if (type == ::amrex::FabType::regular) {
+      kernel_->CompleteFromCons(state, scratch);
+    } else if (type == ::amrex::FabType::singlevalued) {
+      auto volume = MakePatchDataView(volumes[mfi], 0, box);
+      kernel_->CompleteFromCons(state, scratch, volume);
+    }
+  });
+}
+
+template <typename Tag, typename Equation>
+void Reconstruction<Tag, Equation>::CompleteFromCons(IntegratorContext& context,
+                                                     ::amrex::MultiFab& dest, const ::amrex::MultiFab& src,
+                                                     int level, Duration) {
+  const ::amrex::MultiFab& volumes =
+      context.GetEmbeddedBoundary(level).getVolFrac();
 
   ForEachFab(Tag(), dest, [&](const ::amrex::MFIter& mfi) {
     const ::amrex::Box box = mfi.growntilebox();

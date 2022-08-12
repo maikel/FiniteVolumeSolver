@@ -56,7 +56,7 @@ static auto initial_function2(double rel_x, double rho_0,
 }
 
 static auto sod_shock_function(double rel_x, double rho0,
-                                double width, double u0, double p0) noexcept {
+                                double, double u0, double p0) noexcept {
   const double rho = rel_x < 0.0 ? 10.0*rho0 : rho0;
   const double u = u0;
   const double p = rel_x < 0.0 ? 10.0*p0 : p0;
@@ -95,7 +95,6 @@ struct WaveFunction {
             Coord xhi(geom.CellCenter(i, 0), geom.CellCenter(j, 1));
             const double dx = geom.CellSize(0);
             const double dy = geom.CellSize(1);
-            double p = p_0_;
             if (alpha(iv) > 0.0) {
               Coord x{xhi[0] + vol(iv,0)*dx, xhi[1] + vol(iv,1)*dy};
               const double relative_x = (x - origin_).dot(direction_);
@@ -150,7 +149,7 @@ template <typename FluxMethod> struct MakeFlux {
     using HGrid = fub::HGridReconstruction2<fub::PerfectGas<2>, Gradient, ReconstructionMethod>;
     HGrid hgrid{eq, ReconstructionMethod{eq}};
     fub::MyCutCellMethod<fub::PerfectGas<2>, FluxMethod, HGrid> cutcell_method(eq, std::move(hgrid), std::move(limiter));
-    fub::amrex::cutcell::MyFluxMethod adapter(std::move(cutcell_method));
+    fub::amrex::cutcell::MyFluxMethod adapter(fub::execution::seq, std::move(cutcell_method));
     return adapter;
   }
 };
@@ -315,7 +314,7 @@ void MyMain(const fub::ProgramOptions& opts) {
   using fub::amrex::cutcell::Reconstruction;
   using fub::amrex::cutcell::TimeIntegrator2;
   fub::amrex::cutcell::HyperbolicMethod method{flux_method, TimeIntegrator2{},
-                                               Reconstruction{equation}};
+                                               Reconstruction{fub::execution::seq, equation}};
 
   const int scratch_gcw = 7;
   const int flux_gcw = 4;

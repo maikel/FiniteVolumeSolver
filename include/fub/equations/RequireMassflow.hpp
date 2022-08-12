@@ -36,7 +36,7 @@ struct RequireMassflow_SolveExactRiemannProblem {
     const double rhoL_rarefaction = rhoL_star / std::pow(p_star_over_pL, 1.0 / gamma);
     
     // Toro p.122 f_L for the case: left wave is shock wave
-    static auto f_shock = [&](double p) {
+    auto f_shock = [&](double p) {
       const double A = 2.0 / (gp1 * rhoL_shock);
       const double B = pL * gm1_over_gp1;
       const double ooQ = std::sqrt(A / (p + B));
@@ -44,12 +44,12 @@ struct RequireMassflow_SolveExactRiemannProblem {
     };
 
     // Toro p.122 eq(4.21) u_L for the case: left wave is shock wave
-    static auto u_shock = [&](double p) {
+    auto u_shock = [&](double p) {
       return u_star + f_shock(p);
     };
 
     // Toro p.123 f_L for the case: left wave is rarefaction wave
-    static auto f_rarefaction = [&](double p) {
+    auto f_rarefaction = [&](double p) {
       const double aL = std::sqrt(gamma * pL / rhoL_rarefaction);
       const double pre_coeff = 2.0 * aL * oogm1;
       const double p_rel = p / pL;
@@ -58,7 +58,7 @@ struct RequireMassflow_SolveExactRiemannProblem {
     };
 
     // Toro p.123 eq(4.26) u_L for the case: left wave is rarefaction wave
-    static auto u_rarefaction = [&](double p) {
+    auto u_rarefaction = [&](double p) {
       return u_star + f_rarefaction(p);
     };
     

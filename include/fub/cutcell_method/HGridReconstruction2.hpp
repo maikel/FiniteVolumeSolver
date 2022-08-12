@@ -172,7 +172,6 @@ void HGridReconstruction2<Equation, GradientT, ReconstructionMethod>::
       RequireMassflow(equation_, scratch_, rhoL_star, std::abs(u_star), p_star, pL, dir);
       scratch_.velocity[d] *= u_star_sign;
       CompleteFromState(equation_, boundary_rec_, scratch_);
-
       rec_.ReconstructInvers(boundary_state_, boundary_rec_, boundary_gradient_, dt, dx[d], dir, upper);
     }
     // mass flows into the cut cell
@@ -193,7 +192,6 @@ void HGridReconstruction2<Equation, GradientT, ReconstructionMethod>::
       scratch_.velocity[d] *= u_star_sign;
       singly_shielded_factor_ = rhoL_star / interior_rec_.density;
       CompleteFromState(equation_, interior_rec_, scratch_);
-
       rec_.ReconstructInvers(interior_state_, interior_rec_, interior_gradient_, dt, dx[d], dir, upper);
     }
   }
@@ -258,8 +256,6 @@ void HGridReconstruction2<Equation, GradientT, ReconstructionMethod>::
 
     if (singly_shielded_factor_) {
       StateFromComplete(equation_, boundary_scratch_, h_grid_eb[1]);
-      // boundary_scratch_ = scratch_;
-      // boundary_scratch_.density *= singly_shielded_factor_;
       ForEachComponent(
           [&](double& Q_r, double& dQ_r, double Q_b, double dQ_b, double Q_i,
               double dQ_i) {
@@ -319,8 +315,6 @@ void HGridReconstruction2<Equation, GradientT, ReconstructionMethod>::
 
     if (singly_shielded_factor_) {
       StateFromComplete(equation_, boundary_scratch_, h_grid_eb[0]);
-      // boundary_scratch_ = scratch_;
-      // boundary_scratch_.density *= singly_shielded_factor_;
       ForEachComponent(
           [&](double& Q_r, double& dQ_r, double Q_b, double dQ_b, double Q_i,
               double dQ_i) {

@@ -166,6 +166,8 @@ private:
   Conservative stable_flux_{equation_};
 
   Complete state_{equation_};
+  Complete recL_{equation_};
+  Complete recR_{equation_};
   Complete reflected_{equation_};
   Complete riemann_solution_{equation_};
 
@@ -212,8 +214,8 @@ void MyCutCellMethod<Equation, FluxMethod, HGridRec, RiemannSolver>::
                           const View<const Complete>& states_old,
                           const span<View<const Gradient>, 3>& gradients,
                           const CutCellData<Rank>& geom,
-                          const Coordinates<Rank>& h, Duration dt, Direction dir_x) {
-  const Eigen::Matrix<double, Rank, 1> unit = UnitVector<Rank>(Direction::X);
+                          const Coordinates<Rank>& h, Duration dt, Direction) {
+  // const Eigen::Matrix<double, Rank, 1> unit = UnitVector<Rank>(Direction::X);
   ForEachIndex(Box<0>(references), [&](auto... is) {
     Index<Rank> index{is...};
     if (IsCutCell(geom, index)) {
@@ -225,26 +227,13 @@ void MyCutCellMethod<Equation, FluxMethod, HGridRec, RiemannSolver>::
           continue;
         }
         Direction dir = static_cast<Direction>(d);
-        // const auto d = static_cast<int>(dir);
-        // if (dir != dir_x) {
-        //   h_grid_reconstruction_.ReconstructEmbeddedBoundaryStencil(
-        //     h_grid_eb_, h_grid_eb_gradients_, states, gradients[0], gradients[1],
-        //     gradients[2], AsConst(references), geom, index, dt, h, dir);
-        // } else {
-          h_grid_reconstruction_.ReconstructEmbeddedBoundaryStencil(
-            h_grid_eb_, h_grid_eb_gradients_, states, gradients[0], gradients[1],
-            gradients[2], AsConst(references), geom, index,  Duration(0), h, dir);
-        // }
-        // const Complete* q = normal[d] < 0 ? &h_grid_eb_[0] : &h_grid_eb_[1];
-        // const Gradient* dqdx = normal[d] < 0 ? &h_grid_eb_gradients_[0] : &h_grid_eb_gradients_[1];
-        // Side side = normal[d] < 0 ? Side::Upper : Side::Lower;
-        // FluxMethod::GetReconstruction().Reconstruct(state_, *q, *dqdx, Duration(0), h[d], dir, side);
-        // Rotate(state_, state_, MakeRotation(normal, unit), equation_);
-        // Reflect(reflected_, state_, unit, equation_);
-        riemann_solver_.SolveRiemannProblem(riemann_solution_, h_grid_eb_[0], h_grid_eb_[1], dir);
+        h_grid_reconstruction_.ReconstructEmbeddedBoundaryStencil(
+            h_grid_eb_, h_grid_eb_gradients_, states_old, gradients[0], gradients[1],
+            gradients[2], AsConst(references), geom, index, dt, h, dir);
+        FluxMethod::GetReconstruction().Reconstruct(recL_, h_grid_eb_[0], h_grid_eb_gradients_[0], Duration(0), h[d], dir, Side::Upper);
+        FluxMethod::GetReconstruction().Reconstruct(recR_, h_grid_eb_[1], h_grid_eb_gradients_[1], Duration(0), h[d], dir, Side::Lower);
+        riemann_solver_.SolveRiemannProblem(riemann_solution_, recL_, recR_, dir);
         riemann_solution_.momentum[1 - d] = -normal[d] / normal[1 - d] * riemann_solution_.momentum[d];
-        // Rotate(riemann_solution_, riemann_solution_, MakeRotation(unit, normal),
-        //       equation_);
         Store(references, riemann_solution_, index);
         break;
       }
@@ -410,14 +399,14 @@ void MyCutCellMethod<Equation, FluxMethod, HGridRec, RiemannSolver>::
           numeric_flux_array_, betas,
           span{stencil_array_}.template subspan<0, 2>(), gradient_array_,
           alphas, dt, dx, dir);
-      for (int i = 0; i < betas.size(); ++i) {
-        ForEachComponent(
-            [&](auto&& flux [[maybe_unused]]) {
-              FUB_ASSERT(betas[i] == 0.0 ||
-                         (betas[i] > 0.0 && !std::isnan(flux[i])));
-            },
-            numeric_flux_array_);
-      }
+      // for (int i = 0; i < betas.size(); ++i) {
+      //   ForEachComponent(
+      //       [&](auto&& flux [[maybe_unused]]) {
+      //         FUB_ASSERT(betas[i] == 0.0 ||
+      //                    (betas[i] > 0.0 && !std::isnan(flux[i])));
+      //       },
+      //       numeric_flux_array_);
+      // }
       Store(fit, numeric_flux_array_);
       Advance(fit, kDefaultChunkSize);
       for (std::size_t i = 0; i < 2; ++i) {
@@ -485,22 +474,32 @@ void MyCutCellMethod<Equation, FluxMethod, HGridRec, RiemannSolver>::
     const double betaUsL = betaUs(faceL);
     const double betaUsR = betaUs(faceR);
 
-    if (betaUsR > 0.0 && Contains(Box<0>(regular_fluxes), faceR)) {
-      h_grid_reconstruction_.ReconstructRegularStencil(
-          h_grid_regular_, h_grid_regular_gradients_, states, gradient_x,
-          gradient_y, gradient_z, geom, faceR, dt, dx, dir);
-      FluxMethod::ComputeNumericFlux(regular_flux_, h_grid_regular_,
-                                     h_grid_regular_gradients_, dt, dx[d], dir);
-      Store(regular_fluxes, regular_flux_, faceR);
+    if (Contains(Box<0>(regular_fluxes), faceR)) {
+      if (betaUsR > 0.0) {
+        h_grid_reconstruction_.ReconstructRegularStencil(
+            h_grid_regular_, h_grid_regular_gradients_, states, gradient_x,
+            gradient_y, gradient_z, geom, faceR, dt, dx, dir);
+        FluxMethod::ComputeNumericFlux(regular_flux_, h_grid_regular_,
+                                      h_grid_regular_gradients_, dt, dx[d], dir);
+        Store(regular_fluxes, regular_flux_, faceR);
+      } else {
+        SetZero(regular_flux_);
+        Store(regular_fluxes, regular_flux_, faceR);
+      }
     }
 
-    if (betaUsL > 0.0 && Contains(Box<0>(regular_fluxes), faceL)) {
+    if (Contains(Box<0>(regular_fluxes), faceL)) {
+      if (betaUsL > 0.0) {
       h_grid_reconstruction_.ReconstructRegularStencil(
           h_grid_regular_, h_grid_regular_gradients_, states, gradient_x,
           gradient_y, gradient_z, geom, faceL, dt, dx, dir);
       FluxMethod::ComputeNumericFlux(regular_flux_, h_grid_regular_,
                                      h_grid_regular_gradients_, dt, dx[d], dir);
       Store(regular_fluxes, regular_flux_, faceL);
+      } else {
+        SetZero(regular_flux_);
+        Store(regular_fluxes, regular_flux_, faceL);
+      }
     }
 
     if (betaL == betaR) {
