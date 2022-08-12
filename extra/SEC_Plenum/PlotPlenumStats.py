@@ -18,9 +18,12 @@ os.environ['HDF5_USE_FILE_LOCKING'] = 'False'
 
 # check cli
 if len(sys.argv)<2:
-   errMsg = ('Not enough input arguments!\n'
-               +'\tfirst argument must be dataPath!')
-   raise RuntimeError(errMsg)
+  errMsg = ('Not enough input arguments!\n'
+               +'\t1. argument must be dataPath!\n'
+               +'\toptional argument is name of the inputfile\n'
+               +'\te.g. {} path --config=inputfile.py'.format(sys.argv[0])
+            )
+  raise RuntimeError(errMsg)
 
 # parsing the datapath from terminal
 dataPath = str(sys.argv[1]) # path to data
@@ -28,10 +31,11 @@ if not os.path.exists(dataPath):
    raise FileNotFoundError('given Path: {} does not exist!'.format(dataPath))
 inputFilePath = dataPath # assumes inputfile is located in datapath
 
-try:
-   inputfileName = str(sys.argv[2]) # optional name of the inputfile
-except: 
-   inputfileName = 'SEC_Plenum_Arrhenius.py'
+# name of the inputfile is optional
+optional = [ int(el.rsplit('=',1)[-1]) for el in sys.argv if '--config=' in el ]
+if not optional:
+    optional = ['inputfile.py'] # default value 
+inputfileName = optional[0]
 
 import_file_as_module( os.path.join(inputFilePath, inputfileName), 'inputfile')
 from inputfile import t_ref, T_ref, ControlOptions
@@ -52,9 +56,6 @@ from scipy.signal import find_peaks
 # style settings for matplotlib
 plt.style.use('seaborn')
 tex_fonts = {
-    # Use LaTeX to write all text
-    "text.usetex": True,
-    "font.family": "serif",
     # Use 10pt font in plots, to match 10pt font in document
     "axes.labelsize": 9,
     "axes.titlesize": 9,
@@ -65,6 +66,12 @@ tex_fonts = {
     "xtick.labelsize": 7,
     "ytick.labelsize": 7
 }
+
+usetex = matplotlib.checkdep_usetex(True)
+if usetex:
+  # Use LaTeX to write all text
+  tex_fonts.update({"text.usetex": True, 
+                  "font.family": "serif"}) 
 plt.rcParams.update(tex_fonts)
 
 # list of named colors which will be used
@@ -134,8 +141,12 @@ for i, ax, subKey, unit in zip(range(len(plotKeyList)), axs.flatten(), plotKeyLi
    ax.fill_between(time[t_index_array], max[t_index_array], min[t_index_array], alpha=0.5, color=colors[i])
    
    meanValue = np.mean(mean[time>meanValueMinTime])
+   lab = 't in [{},{}]'
+   if usetex:
+      lab = r'$t \in [{},{}]$'
+
    ax.set_title('mean value = {} {} for '.format(round(meanValue, 2), unit)
-               + r'$t \in [{},{}]$'.format(np.rint(meanValueMinTime), np.rint(time[-1]))
+               + lab.format(np.rint(meanValueMinTime), np.rint(time[-1]))
                )
    ax.set(xlabel='time', ylabel=subKey+unit, xlim=(tplotmin, tplotmax))
    ax.grid(True)

@@ -17,9 +17,12 @@ import glob
 
 # check cli
 if len(sys.argv)<2:
-   errMsg = ('Not enough input arguments!\n'
-               +'\tfirst argument must be dataPath!')
-   raise RuntimeError(errMsg)
+  errMsg = ('Not enough input arguments!\n'
+               +'\t1. argument must be dataPath!\n'
+               +'\toptional argument is name of the inputfile\n'
+               +'\te.g. {} path --config=inputfile.py'.format(sys.argv[0])
+            )
+  raise RuntimeError(errMsg)
 
 # parsing the datapath from terminal
 dataPath = str(sys.argv[1]) # path to data
@@ -34,10 +37,11 @@ output_path = '{}/Visualization'.format(dataPath)
 # this make only sense if we restarted the simulation form the last checkpoint!!
 RESTARTEDSIMULATION = False
 
-try:
-   inputfileName = str(sys.argv[2]) # optional name of the inputfile
-except: 
-   inputfileName = 'SEC_Plenum_Arrhenius.py'
+# name of the inputfile is optional
+optional = [ int(el.rsplit('=',1)[-1]) for el in sys.argv if '--config=' in el ]
+if not optional:
+    optional = ['inputfile.py'] # default value 
+inputfileName = optional[0]
 
 other.import_file_as_module(os.path.join(inputFilePath, inputfileName), 'inputfile')
 from inputfile import t_ref, T_ref, ControlOptions
@@ -53,9 +57,6 @@ os.environ['HDF5_USE_FILE_LOCKING'] = 'False'
 
 #plt.style.use('seaborn')
 tex_fonts = {
-    # Use LaTeX to write all text
-    "text.usetex": True,
-    "font.family": "serif",
     # Use 10pt font in plots, to match 10pt font in document
     "axes.labelsize": 9,
     "axes.titlesize": 9,
@@ -67,6 +68,11 @@ tex_fonts = {
     "ytick.labelsize": 7
 }
 
+usetex = matplotlib.checkdep_usetex(True)
+if usetex:
+  # Use LaTeX to write all text
+  tex_fonts.update({"text.usetex": True, 
+                  "font.family": "serif"}) 
 plt.rcParams.update(tex_fonts)
 plt.rcParams.update({'axes.grid' : False})
 

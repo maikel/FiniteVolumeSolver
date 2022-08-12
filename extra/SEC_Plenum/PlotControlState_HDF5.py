@@ -18,9 +18,12 @@ os.environ['HDF5_USE_FILE_LOCKING'] = 'False'
 
 # check cli
 if len(sys.argv)<2:
-   errMsg = ('Not enough input arguments!\n'
-               +'\tfirst argument must be dataPath!')
-   raise RuntimeError(errMsg)
+  errMsg = ('Not enough input arguments!\n'
+               +'\t1. argument must be dataPath!\n'
+               +'\toptional argument is name of the inputfile\n'
+               +'\te.g. {} path --config=inputfile.py'.format(sys.argv[0])
+            )
+  raise RuntimeError(errMsg)
 
 # parsing the datapath from terminal
 dataPath = str(sys.argv[1]) # path to data
@@ -28,10 +31,11 @@ if not os.path.exists(dataPath):
    raise FileNotFoundError('given Path: {} does not exist!'.format(dataPath))
 inputFilePath = dataPath # assumes inputfile is located in datapath
 
-try:
-   inputfileName = str(sys.argv[2]) # optional name of the inputfile
-except: 
-   inputfileName = 'SEC_Plenum_Arrhenius.py'
+# name of the inputfile is optional
+optional = [ int(el.rsplit('=',1)[-1]) for el in sys.argv if '--config=' in el ]
+if not optional:
+    optional = ['inputfile.py'] # default value 
+inputfileName = optional[0]
 
 import_file_as_module( os.path.join(inputFilePath, inputfileName), 'inputfile')
 from inputfile import t_ref, T_ref, ControlOptions
@@ -52,9 +56,6 @@ from scipy.signal import find_peaks
 # style settings for matplotlib
 plt.style.use('seaborn')
 tex_fonts = {
-    # Use LaTeX to write all text
-    "text.usetex": True,
-    "font.family": "serif",
     # Use 10pt font in plots, to match 10pt font in document
     "axes.labelsize": 9,
     "axes.titlesize": 9,
@@ -65,6 +66,12 @@ tex_fonts = {
     "xtick.labelsize": 7,
     "ytick.labelsize": 7
 }
+
+usetex = matplotlib.checkdep_usetex(True)
+if usetex:
+  # Use LaTeX to write all text
+  tex_fonts.update({"text.usetex": True, 
+                  "font.family": "serif"}) 
 plt.rcParams.update(tex_fonts)
 
 # list of named colors which will be used
@@ -108,7 +115,6 @@ def getSECModeInitTimeID(times, comp_pressure, target_pressure, abs_time_offset=
 #----------------------------------------
 # start to make figure 
 f, axs = plt.subplots(nrows=4, ncols=2, figsize=(23/2,20/2) )
-f.suptitle('Control Station')
 
 # what we want to plot
 plotKeyList = ['compressor_mass_flow', 'turbine_mass_flow', 'power', 'rpm', 'pressure', 'temperature', 'fuel_consumption_rate', 'efficiency']
@@ -226,6 +232,18 @@ else:
    ax[1].set_ylim(comp_ylim)
 
 f.subplots_adjust(hspace=0.3, wspace=0.3)
+
+suptitle = 'Control Station'
+suptitle += '\n'+'SEC initiated at t={}'.format(round(t_sec_init, 1))
+meanValueMinTime = 300.
+meanValue = np.mean( datas[times>meanValueMinTime, datas_dict['turbine_pressure']])
+
+lab = 't in [{},{}]'
+if usetex:
+   lab = r'$t \in [{},{}]$'
+suptitle += '\n'+'turbine mean pressure = {} for '.format(round(meanValue, 2))+ lab.format(np.rint(meanValueMinTime), np.rint(times[-1]))
+f.suptitle(suptitle)
+
 f.savefig('{}/control_state.png'.format(output_path), bbox_inches='tight')
 # f.savefig('{}/control_state.pdf'.format(output_path), bbox_inches='tight')
 

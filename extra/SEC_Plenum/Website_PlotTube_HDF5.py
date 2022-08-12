@@ -16,9 +16,12 @@ import matplotlib.pyplot as plt
 
 # check cli
 if len(sys.argv)<2:
-   errMsg = ('Not enough input arguments!\n'
-               +'\tfirst argument must be dataPath!')
-   raise RuntimeError(errMsg)
+  errMsg = ('Not enough input arguments!\n'
+               +'\t1. argument must be dataPath!\n'
+               +'\toptional argument is name of the inputfile\n'
+               +'\te.g. {} path --config=inputfile.py'.format(sys.argv[0])
+            )
+  raise RuntimeError(errMsg)
 
 # parsing the datapath from terminal
 dataPath = str(sys.argv[1]) # path to data
@@ -26,16 +29,17 @@ if not os.path.exists(dataPath):
    raise FileNotFoundError('given Path: {} does not exist!'.format(dataPath))
 inputFilePath = dataPath # assumes inputfile is located in datapath
 
+# name of the inputfile is optional
+optional = [ int(el.rsplit('=',1)[-1]) for el in sys.argv if '--config=' in el ]
+if not optional:
+    optional = ['inputfile.py'] # default value 
+inputfileName = optional[0]
+
 output_path = '{}/Visualization'.format(dataPath)
 
 # bool to read all existing HDF5 files
 # this make only sense if we restarted the simulation form the last checkpoint!!
 RESTARTEDSIMULATION = False
-
-try:
-  inputfileName = str(sys.argv[2]) # optional name of the inputfile
-except: 
-  inputfileName = 'SEC_Plenum_Arrhenius.py'
 
 import_file_as_module(os.path.join(inputFilePath, inputfileName), 'inputfile')
 from inputfile import t_ref, T_ref, ControlOptions
