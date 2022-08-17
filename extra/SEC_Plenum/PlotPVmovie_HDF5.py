@@ -17,8 +17,6 @@ matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 import matplotlib.gridspec as gridspec
 
-import math
-
 os.environ['HDF5_USE_FILE_LOCKING'] = 'False'
 
 # check cli
@@ -27,7 +25,8 @@ if len(sys.argv)<3:
                +'\t1. argument must be dataPath!\n'
                +'\t2. argument must be scalar number\n'
                +'\toptional argument is name of the inputfile\n'
-               +'\te.g. {} path 680 --config=inputfile.py'.format(sys.argv[0])
+               +'\toptional argument parallel working with module multiprocessing (false or true)'
+               +'\te.g. {} path 680 --config=inputfile.py --parallel=true'.format(sys.argv[0])
             )
    raise RuntimeError(errMsg)
 
@@ -38,10 +37,20 @@ if not os.path.exists(dataPath):
 inputFilePath = dataPath # assumes inputfile is located in datapath
 
 # name of the inputfile is optional
-optional = [ int(el.rsplit('=',1)[-1]) for el in sys.argv if '--config=' in el ]
-if not optional:
-    optional = ['inputfile.py'] # default value 
-inputfileName = optional[0]
+optInputFilename = [ int(el.rsplit('=',1)[-1]) for el in sys.argv if '--config=' in el ]
+if not optInputFilename:
+    optInputFilename = ['inputfile.py'] # default value 
+inputfileName = optInputFilename[0]
+
+PARALLEL=False
+optParallelFlag = [ str(el.rsplit('=',1)[-1]) for el in sys.argv if '--parallel=' in el ]
+if optParallelFlag: #list exists
+  matches = ['true', 'True']
+  if any(match in optParallelFlag[0] for match in matches):
+    print('true if')
+    PARALLEL = bool(optParallelFlag[0])
+  else:
+    pass
 
 other.import_file_as_module(os.path.join(inputFilePath, inputfileName), 'inputfile')
 from inputfile import Area, tube_n_cells, p_ref, rho_ref, Output, u_ref, t_ref, L_ref, R_ref, R, gamma
@@ -416,12 +425,10 @@ if INCLUDETUBE:
   
   print('Plotting timeseries')
 
-
-  #for i, (step, t) in enumerate(zip(steps, time)):
-  for i, step in other.progressBar(steps, enumeration=True):
-    ##print(f'step {i}')
+  def plotFigure(i, step, valueDict, pv_class, PARALLEL=False):
     t = time[i]
-    #print(f'plotting picture {i}')
+    if PARALLEL:
+      print(f'plotting picture {i}')
     
     sl = slice(i+2)
 
@@ -492,4 +499,24 @@ if INCLUDETUBE:
     fig.savefig('{}/{}-quiver_tubeID{}-{}.png'.format(newFolder, str(int(test_scalar)).zfill(5), tube_id, str(i).zfill(5)), bbox_inches='tight', dpi=150)
     plt.close(i)
 
+  if PARALLEL:
+    from multiprocessing import Pool, cpu_count
+    Num_CPUs = 8    
+    if Num_CPUs<cpu_count():
+      Num_CPUs = cpu_count()
+    print(f'starting computations on {Num_CPUs} from {cpu_count()} available cores')
+
+    values = ((i,step,valueDict,pv_class,PARALLEL) for i, step in enumerate(steps))
+
+    with Pool(Num_CPUs) as pool:
+      pool.starmap(plotFigure, values)
+  else:
+
+  # for i, (step, t) in enumerate(zip(steps, time)):
+    for i, step in other.progressBar(steps, enumeration=True):
+  # for i, step in enumerate(steps):
+  #   ##print(f'step {i}')
+      plotFigure(i, step, valueDict, pv_class)
+
+  
   os.system('ffmpeg -framerate 10 -i {}/{}-quiver_tubeID{}-%5d.png -crf 20 {}/../{}Movie.mkv'.format(newFolder, str(int(test_scalar)).zfill(5), tube_id, newFolder, str(int(test_scalar)).zfill(5)) )
