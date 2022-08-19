@@ -233,11 +233,11 @@ struct InitialDataInPlenum {
                 const double x = geom.CellCenter(int(i), 0);
                 // const double pressure = 1.0;
                 const double p0 = 2.0;
-                const double rho0 = std::pow(p0, equation_.gamma_inv);
-                const double T0 = p0 / rho0;
-                const double p = 0.95 * p0;
-                const double T = T0 + kinetics_.Q * equation_.gamma_minus_one;
-                const double rho = p / T; // * equation_.ooRspec;
+                // const double rho0 = std::pow(p0, equation_.gamma_inv);
+                // const double T0 = p0 / rho0;
+                // const double p = 0.95 * p0;
+                const double T = 8.0; // T0 + kinetics_.Q * equation_.gamma_minus_one;
+                const double rho = p0 / T; // * equation_.ooRspec;
 
                 state.temperature = T;
                 state.density = rho;
