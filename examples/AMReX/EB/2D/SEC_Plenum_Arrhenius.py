@@ -1,6 +1,6 @@
 import math
 
-tube_n_cells = 256 #256
+tube_n_cells = 384 # 192 256 320 384
 # plenum_x_n_cells = 128
 tube_blocking_factor = 8
 plenum_blocking_factor = 32 #8
@@ -163,9 +163,11 @@ p0 = 2.0
 rho0 = math.pow(p0, 1.0 / gamma)
 T0 = p0 / rho0
 
+# used as initial parameters for 0d turbine
 p = 0.95 * p0
 # T = T0 + ArrheniusKinetics['Q'] * (gamma - 1.0)
-T = 11.290743302923245 # this value is used in Klein's Code
+# T = # 11.290743302923245 # this value is used in Klein's Code
+T = 9.0
 rho = p / T
 
 #-----------------------------------------------
@@ -275,18 +277,18 @@ Plenum = {
     'r_end': 4.0 * r_tube,
     'y_0': y_0,
   } for y_0 in tube_y0s],
-  'InitialCondition': {
-    'left': {
-      'density': rho,
-      'temperature': T,
-      'pressure': p
-    },
-    'right': {
-      'density': rho,
-      'temperature': T,
-      'pressure': p
-    },
-  }
+  # 'InitialCondition': {
+  #   'left': {
+  #     'density': rho,
+  #     'temperature': T,
+  #     'pressure': p
+  #   },
+  #   'right': {
+  #     'density': rho,
+  #     'temperature': T,
+  #     'pressure': p
+  #   },
+  # }
 }
 
 
