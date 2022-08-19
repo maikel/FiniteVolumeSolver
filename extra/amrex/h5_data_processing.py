@@ -65,7 +65,7 @@ def printSimpleStatsTubeData(data, variable, times, tube_id=0, ndig=4, output_pa
         f.write(format_row.format(*row)+"\n")
   print()
 
-def printSimpleStatsPlenumSingleTimepoint(data, variable, time, ndig=8, output_path="", firstCall=False):
+def printSimpleStatsPlenumSingleTimepoint(data, variable, time, ndig=8, output_path="", FIRSTCALL=False, PARALLEL=False):
   """
   Print out simple Stats from given Arrays.
   Shape must be (NCellsX, NCellsY, (NCellsZ))
@@ -82,7 +82,7 @@ def printSimpleStatsPlenumSingleTimepoint(data, variable, time, ndig=8, output_p
                 maximal number of decimal digits for output
     output_path: string, optional
                  optional write out all stats in file
-    firstCall:  bool, optional
+    FIRSTCALL:  bool, optional
                 rename old file if any, write header in new file
   """
   if output_path:
@@ -90,7 +90,9 @@ def printSimpleStatsPlenumSingleTimepoint(data, variable, time, ndig=8, output_p
       fname = os.path.join( output_path.split('Plenum')[0], "Plenum_{}_stats.dat".format(variable) )
     else:
       fname = os.path.join( output_path, "Plenum_{}_stats.dat".format(variable) )
-    if firstCall:
+    if PARALLEL:
+      fname = fname[:-4]+'_unorderd'+fname[-4:] # insert unorderd hint in fname!!
+    if FIRSTCALL:
       if os.path.isfile(fname): # if file exists, rename it
         date = datetime.now().strftime("%Y_%m_%d-%I:%M:%S_%p")
         newName = fname.split('.dat')[0]+"_{}.dat".format(date)

@@ -24,7 +24,8 @@ if len(sys.argv)<2:
   errMsg = ('Not enough input arguments!\n'
                +'\t1. argument must be dataPath!\n'
                +'\toptional argument is name of the inputfile\n'
-               +'\te.g. {} path --config=inputfile.py'.format(sys.argv[0])
+               +'\toptional argument parallel working with module multiprocessing (false or true)'
+               +'\te.g. {} path --config=inputfile.py --parallel=true'.format(sys.argv[0])
             )
   raise RuntimeError(errMsg)
 
@@ -39,6 +40,16 @@ optional = [ int(el.rsplit('=',1)[-1]) for el in sys.argv if '--config=' in el ]
 if not optional:
     optional = ['inputfile.py'] # default value 
 inputfileName = optional[0]
+
+PARALLEL=False
+optParallelFlag = [ str(el.rsplit('=',1)[-1]) for el in sys.argv if '--parallel=' in el ]
+if optParallelFlag: #list exists
+  matches = ['true', 'True']
+  if any(match in optParallelFlag[0] for match in matches):
+    print('true if')
+    PARALLEL = bool(optParallelFlag[0])
+  else:
+    pass
 
 import_file_as_module(os.path.join(inputFilePath, inputfileName), 'inputfile')
 from inputfile import Area, tube_n_cells, p_ref, rho_ref, Output, u_ref, t_ref
@@ -55,8 +66,10 @@ outPath = dataPath
 output_path = '{}/Visualization/Plenum/'.format(outPath)
 
 # Get times and nSteps from plenum
+print('Read times from {}'.format(plenum))
 times = io.h5_load_timepoints(plenum)
 nSteps = times.shape[0]
+print('Found {} timepoints/steps'.format(nSteps))
 
 # optional slicing in time-dimension
 tplotmin = 200.0
@@ -101,18 +114,19 @@ tube_output_factor = int(plenum_out / tube_out)
 # print(tube_output_factor, plenum_out, tube_out)
 
 
-def getPassiveScalarLimits(first=0, last=nSteps-1):
-   (rho, rhoX, vols), _, _, _ = io.h5_load_spec_timepoint_variable(plenum, first, ["Density", "PassiveScalars", "vfrac"])
+def getPassiveScalarLimits(filePath, first=0, last=nSteps-1):
+   (rho, rhoX, vols), _, _, _ = io.h5_load_spec_timepoint_variable(filePath, first, ["Density", "PassiveScalars", "vfrac"])
    rho = np.ma.masked_array(rho, vols < 1e-14)
    min = np.min(rhoX / rho)
 
-   (rho, rhoX, vols), _, _, _ = io.h5_load_spec_timepoint_variable(plenum, last, ["Density", "PassiveScalars", "vfrac"])
+   (rho, rhoX, vols), _, _, _ = io.h5_load_spec_timepoint_variable(filePath, last, ["Density", "PassiveScalars", "vfrac"])
    rho = np.ma.masked_array(rho, vols < 1e-14)
    max = np.max(rhoX / rho)
 
    return np.rint((min, max))
 
-scalar_limits = getPassiveScalarLimits(first=t_index_array[0], last=t_index_array[-1])
+print('LOad passive scalar limits for scaling right the contourf plot.')
+scalar_limits = getPassiveScalarLimits(plenum, first=t_index_array[0], last=t_index_array[-1])
 
 titles = ['Pressure', 'Temperature',  'Passive Scalar', 'Velocity']
 def props(title):
@@ -189,17 +203,16 @@ def stackTubeDataTo2D(Tube_datalist):
       Tube_datalist[i] = np.stack((el,el))
    return Tube_datalist
 
-# for i in itertools.dropwhile(lambda x: x < 53, range(nSteps)):
-# for i in itertools.dropwhile(lambda i: i < 4997, range(nSteps)):
+dataManip.printSimpleStatsPlenumSingleTimepoint(np.zeros(2), 'Pressure', 1.0, 8, output_path, True, PARALLEL)
+dataManip.printSimpleStatsPlenumSingleTimepoint(np.zeros(2), 'Density', 1.0,  8, output_path, True, PARALLEL)
+dataManip.printSimpleStatsPlenumSingleTimepoint(np.zeros(2), 'Temperature', 1.0,  8, output_path, True, PARALLEL)
+dataManip.printSimpleStatsPlenumSingleTimepoint(np.zeros(2), 'PassiveScalar', 1.0,  8, output_path, True, PARALLEL)
 
-dataManip.printSimpleStatsPlenumSingleTimepoint(np.zeros(2), 'Pressure', 1.0, output_path=output_path, firstCall=True)
-dataManip.printSimpleStatsPlenumSingleTimepoint(np.zeros(2), 'Density', 1.0, output_path=output_path, firstCall=True)
-dataManip.printSimpleStatsPlenumSingleTimepoint(np.zeros(2), 'Temperature', 1.0, output_path=output_path, firstCall=True)
-dataManip.printSimpleStatsPlenumSingleTimepoint(np.zeros(2), 'PassiveScalar', 1.0, output_path=output_path, firstCall=True)
-
-for i in t_index_array:
-   PrintProgress(i)
-   
+def plotFigure(i, PARALLEL=False):
+   if PARALLEL:
+      print(f'plotting picture {i}')
+   else:
+      PrintProgress(i)
    Tube_p = []
    Tube_X = []
    tube_extents = []
@@ -309,6 +322,20 @@ for i in t_index_array:
    f.clear()
    plt.close(f)
 
+if PARALLEL:
+    from multiprocessing import Pool, cpu_count
+    Num_CPUs = 8    
+    if Num_CPUs<cpu_count():
+      Num_CPUs = cpu_count()
+    print(f'starting computations on {Num_CPUs} from {cpu_count()} available cores')
+
+    values = ((i,PARALLEL) for i in t_index_array)
+
+    with Pool(Num_CPUs) as pool:
+      pool.starmap(plotFigure, values)
+else:
+   for i in t_index_array:
+      plotFigure(i)
 
 # Call ffmpeg to make a movie
 try:
