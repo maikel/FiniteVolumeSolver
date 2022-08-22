@@ -47,7 +47,7 @@ Output = {
     'type': 'Plotfile',
     'directory': 'ReferenceData/SlopedChannel_old_{}_{}x{}-{}/'.format(reconstruction, n_cells_x, n_cells_y, n_levels),
     'intervals': [1e-4],
-    # 'frequencies': [1] 
+    'frequencies': [1] 
   },
   {
     'type': 'HDF5',

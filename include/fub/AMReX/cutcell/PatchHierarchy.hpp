@@ -117,6 +117,8 @@ struct PatchLevel : ::fub::amrex::PatchLevel {
   /// \brief If we use a h-grid based method we need to compute the integral of
   /// the h-grid boxes for each direction.
   MultiCutFabs h_grid_integration_points;
+
+  std::shared_ptr<::amrex::MultiCutFab> h_grid_total_inner_integration_points;
 };
 
 /// \ingroup PatchHierarchy

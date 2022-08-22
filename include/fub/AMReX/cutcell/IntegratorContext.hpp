@@ -124,6 +124,7 @@ public:
   /// \brief Returns the MultiFab associated with flux data on the specifed
   /// level number and direction.
   [[nodiscard]] ::amrex::MultiFab& GetReferenceStates(int level);
+  [[nodiscard]] ::amrex::MultiFab& GetReferenceGradients(int level, Direction dir);
   [[nodiscard]] ::amrex::MultiFab& GetReferenceMirrorStates(int level);
   [[nodiscard]] ::amrex::iMultiFab& GetReferenceMasks(int level);
 
@@ -312,6 +313,7 @@ private:
 
     /// reference states which are used to compute embedded boundary fluxes
     std::optional<::amrex::MultiFab> reference_states{};
+    std::array<::amrex::MultiFab, AMREX_SPACEDIM> reference_gradients{};
     std::optional<::amrex::MultiFab> reference_mirror_states{};
     std::optional<::amrex::iMultiFab> reference_masks{};
 

@@ -35,26 +35,38 @@ using Point_2 = K::Point_2;
 using Polygon_2 = CGAL::Polygon_2<K>;
 using Polygon_with_holes_2 = CGAL::Polygon_with_holes_2<K>;
 
-
-HGridIntegrationPoints<2> GetHGridIntegrationPoints(const CutCellData<2>& geom, Index<2> index, const Coordinates<2>& dx, Direction dir)
+namespace {
+HGridIntegrationPoints<2> GetHGridIntegrationPoints_(PatchDataView<const double, 3> source, const CutCellData<2>& geom, Index<2> index, const Coordinates<2>& dx)
 {
   HGridIntegrationPoints<2> integration_points{};
   integration_points.iB = index;
   integration_points.xB = GetAbsoluteBoundaryCentroid(geom, index, dx);
-  const auto d = static_cast<std::size_t>(dir);
   for (int i = 0; i < HGridIntegrationPoints<2>::kMaxSources; ++i) {
-    integration_points.volume[i] = geom.hgrid_integration_points[d](index, i*5 + 0);
-    integration_points.xM[i][0] = geom.hgrid_integration_points[d](index, i*5 + 1);
-    integration_points.xM[i][1] = geom.hgrid_integration_points[d](index, i*5 + 2);
+    integration_points.volume[i] = source(index, i*5 + 0);
+    integration_points.xM[i][0] = source(index, i*5 + 1);
+    integration_points.xM[i][1] = source(index, i*5 + 2);
 
-    const double* ptr_x = &geom.hgrid_integration_points[d](index, i*5 + 3);
+    const double* ptr_x = &source(index, i*5 + 3);
     std::memcpy(&integration_points.index[i][0], ptr_x, sizeof(double));
 
-    const double* ptr_y = &geom.hgrid_integration_points[d](index, i*5 + 4);
+    const double* ptr_y = &source(index, i*5 + 4);
     std::memcpy(&integration_points.index[i][1], ptr_y, sizeof(double));
   }
   return integration_points;
 }
+}
+
+HGridIntegrationPoints<2> GetHGridIntegrationPoints(const CutCellData<2>& geom, Index<2> index, const Coordinates<2>& dx, Direction dir)
+{
+  const auto d = static_cast<std::size_t>(dir);
+  return GetHGridIntegrationPoints_(geom.hgrid_integration_points[d], geom, index, dx);
+}
+
+HGridIntegrationPoints<2> GetHGridTotalInnerIntegrationPoints(const CutCellData<2>& geom, Index<2> index, const Coordinates<2>& dx)
+{
+  return GetHGridIntegrationPoints_(geom.hgrid_total_inner_integration_points, geom, index, dx);
+}
+
 
 Coordinates<2> Centroid(const HGridIntegrationPoints<2>& integration)
 {

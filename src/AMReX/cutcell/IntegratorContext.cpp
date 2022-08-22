@@ -314,6 +314,12 @@ const ::amrex::MultiFab& IntegratorContext::GetScratch(int level) const {
   return *data_[l].reference_states;
 }
 
+::amrex::MultiFab& IntegratorContext::GetReferenceGradients(int level, Direction dir) {
+  const std::size_t l = static_cast<std::size_t>(level);
+  const std::size_t d = static_cast<std::size_t>(dir);
+  return data_[l].reference_gradients[d];
+}
+
 ::amrex::MultiFab& IntegratorContext::GetReferenceMirrorStates(int level) {
   const std::size_t l = static_cast<std::size_t>(level);
   FUB_ASSERT(data_.size() > l);
@@ -487,6 +493,15 @@ void IntegratorContext::ResetHierarchyConfiguration(int first_level) {
       data.reference_mirror_states = std::move(refs);
       data.reference_masks.emplace(ba, dm, 1, options_.scratch_gcw);
       data.reference_masks->setVal(0);
+
+      for (int d = 0; d < AMREX_SPACEDIM; ++d) {
+        refs.define(ba, dm, n_components, options_.scratch_gcw, ::amrex::MFInfo(),
+                    *ebf);
+        refs.ParallelCopy(data.reference_gradients[d], 0, 0, n_components,
+                          options_.scratch_gcw, options_.scratch_gcw);
+        data.reference_gradients[d] = std::move(refs);
+      }
+      
     }
 
     for (int d = 0; d < AMREX_SPACEDIM; ++d) {

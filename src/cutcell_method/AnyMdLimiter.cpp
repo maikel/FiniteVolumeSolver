@@ -62,7 +62,7 @@ Eigen::Vector2d SolveLinearOptimizationProblem(
     //                      (A_k)T λ_l = c
     //
     FUB_ASSERT(A_k.determinant() != 0.0);
-    Eigen::Vector2d lambda_k = A_k.transpose().inverse() * c;
+    Eigen::Vector2d lambda_k = A_k.transpose().colPivHouseholderQr().solve(c);
 
     // Step 2: If λ_k >= 0, STOP. In this case, the point x_k is optimal.
     if ((lambda_k.array() >= 0.0).all()) {
@@ -76,7 +76,7 @@ Eigen::Vector2d SolveLinearOptimizationProblem(
 
     // Step 4: Calculate the descent direction pk from A_k p_k = e_q, e_q = q-th
     // coordinate vector.
-    Eigen::Vector2d p_k = A_k.inverse() * Eigen::Vector2d::Unit(q);
+    Eigen::Vector2d p_k = A_k.colPivHouseholderQr().solve(Eigen::Vector2d::Unit(q));
 
     // Step 5: Choose the step length α_k to be taken along p_k:
     double alpha_k = std::numeric_limits<double>::max();
@@ -95,6 +95,7 @@ Eigen::Vector2d SolveLinearOptimizationProblem(
 
     // Step 6: Update working set
     x_k += alpha_k * p_k;
+    FUB_ASSERT(min_i != std::numeric_limits<int>::max());
     FUB_ASSERT(min_i != W_k[q]);
     W_k[q] = min_i;
     A_k = TakeRows(A, W_k);

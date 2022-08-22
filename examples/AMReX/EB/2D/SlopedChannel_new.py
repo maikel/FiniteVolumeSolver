@@ -3,9 +3,9 @@ import math
 isRef = 0
 factor = 1
 
-final_time = 0.51
+final_time = 0.26
 
-max_cycles = [-1, 0]
+max_cycles = [10, 0]
 mode = ['new', 'ref']
 originC = [0.35, 0.35 + final_time]
 
@@ -44,28 +44,30 @@ PatchHierarchy = {
   'hgrid_details': True
 }
 
-limiter = "MinModLimiter"
-# limiter = "NoLimiter"
+# limiter = "MinModLimiter"
+limiter = "NoLimiter"
 # limiter = "Upwind"
 # reconstruction = "KBN"
 reconstruction = "PrimitiveReconstruction"
 # reconstruction = "ConservativeReconstruction"
-initial_function = "Sod"
-# initial_function = "Smooth"
+# initial_function = "Sod"
+initial_function = "Smooth"
 # initial_function = "Linear"
 # initial_function = "Constant"
 
 rhoL = 1.0
-uL = 0.0
+uL = 1.0
 pL = 1.0
 
-rhoR = 0.1
-uR = 0.0
-pR = 0.1
+rho0 = 1.0
+u0 = 1.0
+p0 = 1.0
 
-rho0 = 0.1
-u0 = 0.0
-p0 = 0.1
+# width = 0.3
+
+rhoR = 1.0
+uR = 1.0
+pR = 1.0
 
 origin = originC[isRef]
 theta = math.pi * 30.0 / 180.0
@@ -76,12 +78,12 @@ Output = {
     'type': 'Plotfile',
     'directory': 'Debug_{}_{}x{}-{}-{}/Plot/'.format(reconstruction, n_cells_x, n_cells_y, limiter, initial_function),
     'intervals': [0.05],
-    # 'frequencies': [1] 
+    'frequencies': [1] 
   },
   # {
   #   'type': 'DebugOutput',
   #   'directory': 'Debug_{}_{}x{}-{}/'.format(reconstruction, n_cells_x, n_cells_y, limiter),
-  #   # 'intervals': [1e-4],
+  #   'intervals': [1e-4],
   #   'frequencies': [1] 
   # },
   # {

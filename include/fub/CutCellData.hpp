@@ -71,9 +71,12 @@ template <int Rank> struct CutCellData {
       doubly_shielded_fractions_rel;
 
   std::array<PatchDataView<const double, Rank + 1>, sRank> hgrid_integration_points;
+  PatchDataView<const double, Rank + 1> hgrid_total_inner_integration_points;
 };
 
 HGridIntegrationPoints<2> GetHGridIntegrationPoints(const CutCellData<2>& geom, Index<2> index, const Coordinates<2>& dx, Direction dir);
+
+HGridIntegrationPoints<2> GetHGridTotalInnerIntegrationPoints(const CutCellData<2>& geom, Index<2> index, const Coordinates<2>& dx);
 
 [[nodiscard]] bool IsCutCell(const CutCellData<2>& geom,
                              const std::array<std::ptrdiff_t, 2>& index);

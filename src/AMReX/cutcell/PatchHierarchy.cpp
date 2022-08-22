@@ -41,8 +41,11 @@ namespace fub {
 namespace amrex {
 namespace cutcell {
 namespace {
-using MultiCutFabs =
-    std::array<std::shared_ptr<::amrex::MultiCutFab>, AMREX_SPACEDIM>;
+template <std::size_t N>
+using MultiCutFabArray =
+    std::array<std::shared_ptr<::amrex::MultiCutFab>, N>;
+
+using MultiCutFabs = MultiCutFabArray<AMREX_SPACEDIM>;
 
 using K = CGAL::Exact_predicates_exact_constructions_kernel;
 using Point_2 = K::Point_2;
@@ -203,7 +206,7 @@ Polygon_2 GetHGridPolygonInner(const CutCellData<2>& geom,
   const double betaRy = geom.face_fractions[iy](gR);
   const Coordinates<AMREX_SPACEDIM> xB =
       GetAbsoluteBoundaryCentroid(geom, index, dx);
-  const Coordinates<AMREX_SPACEDIM> xN = GetBoundaryNormal(geom, index);
+  // const Coordinates<AMREX_SPACEDIM> xN = GetBoundaryNormal(geom, index);
 
   const double dBeta_x = betaR - betaL;
   const double dBeta_y = betaRy - betaLy;
@@ -275,7 +278,7 @@ template <typename... Polygons>
 Polygon_2 ConvexHull(const Polygons&... ps)
 {
   std::vector<Point_2> points;
-  points.reserve((0 + ps.size())...);
+  points.reserve((0 +  ... + ps.size()));
   (std::copy(ps.vertices_begin(), ps.vertices_end(), std::back_inserter(points)), ...);
   Polygon_2 polygon{};
   CGAL::convex_hull_2(points.begin(), points.end(),
@@ -467,6 +470,38 @@ PatchLevel::PatchLevel(int level, Duration tp, const ::amrex::BoxArray& ba,
       }
     });
   }
+  h_grid_total_inner_integration_points = std::make_shared<::amrex::MultiCutFab>(ba, dm, HGridIntegrationPoints<AMREX_SPACEDIM>::kMaxSources * (2 * AMREX_SPACEDIM + 1), ngrow, factory->getMultiEBCellFlagFab());
+  h_grid_total_inner_integration_points->setVal(0.0);
+  ForEachFab(execution::openmp, ba, dm, [&](const ::amrex::MFIter& mfi) {
+    if (flags[mfi].getType() == ::amrex::FabType::singlevalued) {
+      // Get Cutcell data
+      CutCellData<AMREX_SPACEDIM> cutcell_data = GetCutCellData(mfi);
+      ::amrex::Box box = mfi.growntilebox(ngrow - 1);
+      Coordinates<AMREX_SPACEDIM> dx{
+          AMREX_D_DECL(geom.CellSize(0), geom.CellSize(1), geom.CellSize(2))};
+      PatchDataView<double, AMREX_SPACEDIM + 1> h_grid_data =
+          MakePatchDataView((*h_grid_total_inner_integration_points)[mfi]);
+      ForEachIndex(AsIndexBox<AMREX_SPACEDIM>(box), [&](auto... is) {
+        Index<AMREX_SPACEDIM> index{is...};
+        HGridIntegrationPoints<AMREX_SPACEDIM> integration_points =
+            ComputeIntegrationPoints(index, cutcell_data, dx);
+        for (int i = 0;
+              i < HGridIntegrationPoints<AMREX_SPACEDIM>::kMaxSources; ++i) {
+          h_grid_data(index, i * (2 * AMREX_SPACEDIM + 1)) =
+              integration_points.volume[i];
+          for (int j = 0; j < AMREX_SPACEDIM; ++j) {
+            h_grid_data(index, i * (2 * AMREX_SPACEDIM + 1) + j + 1) =
+                integration_points.xM[i][j];
+          }
+          for (int j = 0; j < AMREX_SPACEDIM; ++j) {
+            double* ptr = &h_grid_data(index, i * (2 * AMREX_SPACEDIM + 1) + 1 +
+                                                  AMREX_SPACEDIM + j);
+            std::memcpy(ptr, &integration_points.index[i][j], sizeof(double));
+          }
+        }
+      });
+    }
+  });
 }
 
 CutCellData<AMREX_SPACEDIM>
@@ -499,8 +534,14 @@ PatchLevel::GetCutCellData(const ::amrex::MFIter& mfi) const {
         MakePatchDataView((*shielded_right[d])[mfi], 1);
     cutcell_data.doubly_shielded_fractions_rel[d] =
         MakePatchDataView((*doubly_shielded[d])[mfi], 1);
+    if (h_grid_integration_points[d]) {
     cutcell_data.hgrid_integration_points[d] =
         MakePatchDataView((*h_grid_integration_points[d])[mfi]);
+    }
+    if (h_grid_total_inner_integration_points) {
+    cutcell_data.hgrid_total_inner_integration_points =
+        MakePatchDataView((*h_grid_total_inner_integration_points)[mfi]);
+    }
   }
   return cutcell_data;
 }

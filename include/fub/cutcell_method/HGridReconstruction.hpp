@@ -62,6 +62,22 @@ public:
                                   const Coordinates<Rank>& dx, Direction dir);
 
   bool IntegrateCellState(
+    Complete& integral, Gradient& integral_gradient_x, Gradient& integral_gradient_y, Gradient& integral_gradient_z,
+    const std::array<Gradient, sN>& states, const std::array<Gradient, sN>& gradient_x,
+    const std::array<Gradient, sN>& gradient_y,
+    const std::array<Gradient, sN>& gradient_z, const CutCellData<Rank>& geom,
+    const HGridIntegrationPoints<Rank>& integration, const Coordinates<Rank>& h);
+
+  bool IntegrateCellState(Complete& integral, Gradient& integral_gradient_x, Gradient& integral_gradient_y, Gradient& integral_gradient_z,
+                          const View<const Complete>& states,
+                          const View<const Gradient>& gradient_x,
+                          const View<const Gradient>& gradient_y,
+                          const View<const Gradient>& gradient_z,
+                          const CutCellData<Rank>& geom,
+                          const HGridIntegrationPoints<Rank>& integration,
+                          const Coordinates<Rank>& h);
+
+  bool IntegrateCellState(
     Complete& integral, Gradient& integral_gradient,
     const std::array<Gradient, sN>& states, const std::array<Gradient, sN>& gradient_x,
     const std::array<Gradient, sN>& gradient_y,
@@ -299,24 +315,13 @@ bool HGridIntegration<Equation, GradientT>::IntegrateInteriorCellState(
 
 template <typename Equation, typename GradientT>
 bool HGridIntegration<Equation, GradientT>::IntegrateCellState(
-    Complete& integral, Gradient& integral_gradient,
+    Complete& integral, Gradient& integral_gradient_x, Gradient& integral_gradient_y, Gradient& integral_gradient_z,
     const std::array<Gradient, sN>& states, const std::array<Gradient, sN>& gradient_x,
     const std::array<Gradient, sN>& gradient_y,
     const std::array<Gradient, sN>& gradient_z, const CutCellData<Rank>& geom,
-    const HGridIntegrationPoints<Rank>& integration, const Coordinates<Rank>& h,
-    Direction dir) {
+    const HGridIntegrationPoints<Rank>& integration, const Coordinates<Rank>& h) {
   const FT total_volume = std::accumulate(integration.volume.begin(),
                                               integration.volume.end(), FT{0.0});
-  FT total_x = 0.0;
-  FT total_y = 0.0;
-  for (std::size_t i = 0; i < sN && integration.volume[i]; ++i) {
-      const FT volume = integration.volume[i];
-      const FT lambda = volume / total_volume;
-      const FT x = integration.xM[i][0];
-      const FT y = integration.xM[i][1];
-      total_x += lambda * x;
-      total_y += lambda * y;
-  }
   const int n_components = GetNumberOfComponents(equation_, integral_scratch_);
   for (int ncomp = 0; ncomp < n_components; ++ncomp) {
     FT v = 0.0;
@@ -344,7 +349,24 @@ bool HGridIntegration<Equation, GradientT>::IntegrateCellState(
     GetComponent(equation_, gradient_[1], ncomp) = dudy;
     GetComponent(equation_, gradient_[2], ncomp) = dudz;
   }
-  const Coordinates<Rank> total_xM{total_x.convert_to<double>(), total_y.convert_to<double>()};
+  CompleteFromState(equation_, integral, integral_scratch_);
+  integral_gradient_x = gradient_[0];
+  integral_gradient_y = gradient_[1];
+  integral_gradient_z = gradient_[2];
+
+  return true;
+}
+
+template <typename Equation, typename GradientT>
+bool HGridIntegration<Equation, GradientT>::IntegrateCellState(
+    Complete& integral, Gradient& integral_gradient,
+    const std::array<Gradient, sN>& states, const std::array<Gradient, sN>& gradient_x,
+    const std::array<Gradient, sN>& gradient_y,
+    const std::array<Gradient, sN>& gradient_z, const CutCellData<Rank>& geom,
+    const HGridIntegrationPoints<Rank>& integration, const Coordinates<Rank>& h,
+    Direction dir) {
+  IntegrateCellState(integral, gradient_[0], gradient_[1], gradient_[2], states, gradient_x, gradient_y, gradient_z, geom, integration, h, dir);
+  const Coordinates<Rank> total_xM = Centroid(integration);
   const Coordinates<Rank> xN = GetBoundaryNormal(geom, integration.iB);
   const Coordinates<Rank> xB =
       GetAbsoluteBoundaryCentroid(geom, integration.iB, h);
@@ -358,8 +380,56 @@ bool HGridIntegration<Equation, GradientT>::IntegrateCellState(
   integral_scratch_ += gradient_dir_;
   CompleteFromState(equation_, integral, integral_scratch_);
   ApplyGradient(integral_gradient, grads, e_r);
-
   return true;
+}
+
+template <typename Equation, typename GradientT>
+bool HGridIntegration<Equation, GradientT>::IntegrateCellState(
+    Complete& integral, Gradient& integral_gradient_x, Gradient& integral_gradient_y, Gradient& integral_gradient_z,
+    const View<const Complete>& states, const View<const Gradient>& gradient_x,
+    const View<const Gradient>& gradient_y,
+    const View<const Gradient>& gradient_z, const CutCellData<Rank>& geom,
+    const HGridIntegrationPoints<Rank>& integration, const Coordinates<Rank>& h) {
+  const double total_volume = std::accumulate(integration.volume.begin(),
+                                              integration.volume.end(), double{0.0});
+  if (total_volume == 0.0) {
+    return false;
+  }
+  SetZero(integral_scratch_);
+  SetZero(integral_gradient_x);
+  SetZero(integral_gradient_y);
+  SetZero(integral_gradient_z);
+  std::array<Gradient, sN> u{};
+  std::array<Gradient, sN> dudx{};
+  std::array<Gradient, sN> dudy{};
+  std::array<Gradient, sN> dudz{};
+  u.fill(Gradient{equation_});
+  dudx.fill(Gradient{equation_});
+  dudy.fill(Gradient{equation_});
+  dudz.fill(Gradient{equation_});
+  for (std::size_t i = 0; i < sN && integration.volume[i]; ++i) {
+    FUB_ASSERT(integration.volume[i] > 0);
+    const Index<Rank> index = integration.index[i];
+    if (Contains(Box<0>(states), index) && geom.volume_fractions(index) > 0.0) {
+      Load(gradient_[0], gradient_x, index);
+      Load(gradient_[1], gradient_y, index);
+      Load(gradient_[2], gradient_z, index);
+      span<const Gradient, Rank> grads{gradient_.data(), Rank};
+      const Coordinates<Rank> xC = GetAbsoluteVolumeCentroid(geom, index, h);
+      const Coordinates<Rank> xM = integration.xM[i];
+      const Coordinates<Rank> dx = xM - xC;
+      ApplyGradient(gradient_dir_, grads, dx);
+      Load(state_, states, index);
+      StateFromComplete(equation_, u[i], state_);
+      u[i] += gradient_dir_;
+      dudx[i] = gradient_[0];
+      dudy[i] = gradient_[1];
+      dudz[i] = gradient_[2];
+    } else {
+      return false;
+    }
+  }
+  return IntegrateCellState(integral, integral_gradient_x, integral_gradient_y, integral_gradient_z, u, dudx, dudy, dudz, geom, integration, h);
 }
 
 template <typename Equation, typename GradientT>

@@ -96,7 +96,7 @@ public:
   using FluxMethod::ComputeStableDt;
 
   void ComputeBoundaryStates(const View<Complete>& references,
-                             const View<const Complete>& states,
+                             const span<View<Gradient>, 3>& reference_gradients,
                              const View<const Complete>& states_old,
                              const span<View<const Gradient>, 3>& gradients,
                              const CutCellData<Rank>& cutcell_data,
@@ -124,6 +124,9 @@ public:
                        const View<Conservative>& regular_fluxes,
                        const View<Conservative>& boundary_fluxes,
                        const View<const Complete>& boundary_reference_states,
+                       const View<const Gradient>& reference_gradient_x,
+                       const View<const Gradient>& reference_gradient_y,
+                       const View<const Gradient>& reference_gradient_z,
                        const View<const Gradient>& gradient_x,
                        const View<const Gradient>& gradient_y,
                        const View<const Gradient>& gradient_z,
@@ -210,8 +213,8 @@ template <typename Equation, typename FluxMethod, typename HGridRec,
           typename RiemannSolver>
 void MyCutCellMethod<Equation, FluxMethod, HGridRec, RiemannSolver>::
     ComputeBoundaryStates(const View<Complete>& references,
+                          const span<View<Gradient>, 3>& reference_gradients,
                           const View<const Complete>& states,
-                          const View<const Complete>& states_old,
                           const span<View<const Gradient>, 3>& gradients,
                           const CutCellData<Rank>& geom,
                           const Coordinates<Rank>& h, Duration dt, Direction) {
@@ -219,42 +222,13 @@ void MyCutCellMethod<Equation, FluxMethod, HGridRec, RiemannSolver>::
   ForEachIndex(Box<0>(references), [&](auto... is) {
     Index<Rank> index{is...};
     if (IsCutCell(geom, index)) {
-      Coordinates<Rank> normal = GetBoundaryNormal(geom, index);
-      Load(state_, states, index);
-      for (int d = 0; d < Rank; ++d) {
-        const double rhou = state_.momentum[d];
-        if (rhou * normal[d] > 0) {
-          continue;
-        }
-        Direction dir = static_cast<Direction>(d);
-        h_grid_reconstruction_.ReconstructEmbeddedBoundaryStencil(
-            h_grid_eb_, h_grid_eb_gradients_, states_old, gradients[0], gradients[1],
-            gradients[2], AsConst(references), geom, index, dt, h, dir);
-        FluxMethod::GetReconstruction().Reconstruct(recL_, h_grid_eb_[0], h_grid_eb_gradients_[0], Duration(0), h[d], dir, Side::Upper);
-        FluxMethod::GetReconstruction().Reconstruct(recR_, h_grid_eb_[1], h_grid_eb_gradients_[1], Duration(0), h[d], dir, Side::Lower);
-        riemann_solver_.SolveRiemannProblem(riemann_solution_, recL_, recR_, dir);
-        riemann_solution_.momentum[1 - d] = -normal[d] / normal[1 - d] * riemann_solution_.momentum[d];
-        Store(references, riemann_solution_, index);
-        break;
-      }
-      // Load(gradients_[0], gradients[0], index);
-      // Load(gradients_[1], gradients[1], index);
-      // Load(gradients_[2], gradients[2], index);
-      // span<const Gradient, Rank> grads{gradients_.data(), Rank};
-      // Coordinates<Rank> xM = GetAbsoluteVolumeCentroid(geom, index, h);
-      // Coordinates<Rank> xB = GetAbsoluteBoundaryCentroid(geom, index, h);
-      // Coordinates<Rank> dx = xB - xM;
-      // ApplyGradient(gradient_, grads, dx);
-      // StateFromComplete(equation_, scratch_, state_);
-      // scratch_ += gradient_;
-      // CompleteFromState(equation_, state_, scratch_);
-      // Rotate(state_, state_, MakeRotation(normal, unit), equation_);
-      // Reflect(reflected_, state_, unit, equation_);
-      // riemann_solver_.SolveRiemannProblem(riemann_solution_, reflected_, state_,
-      //                                     Direction::X);
-      // Rotate(riemann_solution_, riemann_solution_, MakeRotation(unit, normal),
-      //        equation_);
-      // Store(references, riemann_solution_, index);
+      HGridIntegrationPoints<Rank> integration = GetHGridTotalInnerIntegrationPoints(geom, index, h);
+      h_grid_reconstruction_.GetHGridIntegration().IntegrateCellState(state_, gradients_[0], gradients_[1], gradients_[2], states, gradients[0], gradients[1], gradients[2], geom, integration, h);
+
+      Store(references, state_, index);
+      Store(reference_gradients[0], gradients_[0], index);
+      Store(reference_gradients[1], gradients_[1], index);
+      Store(reference_gradients[2], gradients_[2], index);
     }
   });
 }
@@ -443,6 +417,9 @@ void MyCutCellMethod<Equation, FluxMethod, HGridRec, RiemannSolver>::
                          const View<Conservative>& regular_fluxes,
                          const View<Conservative>& boundary_fluxes,
                          const View<const Complete>& boundary_reference_states,
+                         const View<const Gradient>& reference_gradient_x,
+                         const View<const Gradient>& reference_gradient_y,
+                         const View<const Gradient>& reference_gradient_z,
                          const View<const Gradient>& gradient_x,
                          const View<const Gradient>& gradient_y,
                          const View<const Gradient>& gradient_z,
@@ -508,7 +485,7 @@ void MyCutCellMethod<Equation, FluxMethod, HGridRec, RiemannSolver>::
 
     h_grid_reconstruction_.ReconstructEmbeddedBoundaryStencil(
         h_grid_eb_, h_grid_eb_gradients_, states, gradient_x, gradient_y,
-        gradient_z, boundary_reference_states, geom, cell, dt, dx, dir);
+        gradient_z, boundary_reference_states, reference_gradient_x, reference_gradient_y, reference_gradient_z, geom, cell, dt, dx, dir);
     FluxMethod::ComputeNumericFlux(boundary_flux_, h_grid_eb_,
                                    h_grid_eb_gradients_, dt, dx[d], dir);
     Store(boundary_fluxes, boundary_flux_, cell);

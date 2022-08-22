@@ -6,6 +6,37 @@
 
 namespace fub {
 
+template <typename Equation, typename GradientT>
+class LinearFunctional {
+public:
+  static constexpr int Rank = Equation::Rank();
+
+  LinearFunctional(const Equation& eq, const Complete<Equation>& q, const std::array<GradientT, 3>& dq_dx, const Coordinates<Rank> x0)
+    : equation_{eq}, x0_{x0}, q_{q}, dq_dx_{dq_dx} {
+      StateFromComplete(equation_, u0_, q_);
+    }
+
+  void EvalAt(const Coordinates<Rank>& x, Complete<Equation>& q)
+  {
+    const Coordinates<Rank> dx = x - x0_;
+    span<const GradientT, Rank> grads(dq_dx_.data(), Rank);
+    ApplyGradient(du_dx_, grads, dx);
+    u_ = u0_;
+    u_ += du_dx_;
+    CompleteFromState(equation_, q, u_);
+  }
+
+private:
+  Equation equation_;
+  Coordinates<Rank> x0_;
+  Complete<Equation> q_;
+  std::array<GradientT, 3> dq_dx_;
+
+  GradientT u0_{equation_};
+  GradientT u_{equation_};
+  GradientT du_dx_{equation_};
+};
+
 template <typename Equation, typename GradientT, typename ReconstructionMethod>
 class HGridReconstruction2 : private HGridReconstruction<Equation, GradientT> {
 public:
@@ -22,6 +53,8 @@ public:
       : Base(eq), equation_{eq}, rec_{std::move(rec)} {}
 
   using Base::ReconstructRegularStencil;
+
+  using Base::GetHGridIntegration;
 
   void ReconstructSinglyShieldedStencil(
       span<Complete, 2> h_grid_singly_shielded,
@@ -43,6 +76,9 @@ public:
       const View<const Gradient>& gradient_y,
       const View<const Gradient>& gradient_z,
       const View<const Complete>& boundary_reference_states,
+      const View<const Gradient>& reference_gradient_x,
+      const View<const Gradient>& reference_gradient_y,
+      const View<const Gradient>& reference_gradient_z,
       const CutCellData<Rank>& cutcell_data, const Index<Rank>& cell,
       Duration dt, Eigen::Matrix<double, Rank, 1> dx, Direction dir);
 
@@ -65,7 +101,6 @@ private:
   Complete interior_rec_{equation_};
   Complete interior_state_{equation_};
   Gradient interior_gradient_{equation_};
-  double singly_shielded_factor_{0.0};
 };
 
 template <typename Equation, typename GradientT, typename ReconstructionMethod>
@@ -117,83 +152,95 @@ void HGridReconstruction2<Equation, GradientT, ReconstructionMethod>::
         const View<const Gradient>& gradient_y,
         const View<const Gradient>& gradient_z,
         const View<const Complete>& boundary_reference_states,
-        const CutCellData<Rank>& cutcell_data, const Index<Rank>& cell,
-        Duration dt, Eigen::Matrix<double, Rank, 1> dx, Direction dir) {
+        const View<const Gradient>& reference_gradient_x,
+        const View<const Gradient>& reference_gradient_y,
+        const View<const Gradient>& reference_gradient_z,
+        const CutCellData<Rank>& geom, const Index<Rank>& index,
+        Duration dt, Eigen::Matrix<double, Rank, 1> h, Direction dir) {
   const auto d = static_cast<std::size_t>(dir);
+  const auto ix = d;
+  const auto iy = 1 - d;
+  const Index<Rank> fL = index;
+  const Index<Rank> fR = Shift(fL, dir, 1);
+  const double betaL = geom.face_fractions[d](fL);
+  const double betaR = geom.face_fractions[d](fR);
+  
+  // Load refernce state
+  Load(reference_state_, boundary_reference_states, index);
+  Load(gradient_[0], reference_gradient_x, index);
+  Load(gradient_[1], reference_gradient_y, index);
+  Load(gradient_[2], reference_gradient_z, index);
+  span<const Gradient, Rank> grads(gradient_.data(), Rank);
+  HGridIntegrationPoints<2> integration = GetHGridTotalInnerIntegrationPoints(geom, index, h);
+
+  LinearFunctional ref(equation_, reference_state_, gradient_, Centroid(integration));
+
   SetZero(interior_state_);
   SetZero(interior_gradient_);
-  if (!Base::GetHGridIntegration().IntegrateInteriorCellState(
-          interior_state_, interior_gradient_, states, gradient_x, gradient_y,
-          gradient_z, cutcell_data, cell, dx, dir)) {
-    Load(interior_state_, states, cell);
-    SetZero(interior_gradient_);
-  }
-
   SetZero(boundary_state_);
   SetZero(boundary_gradient_);
-  HGridIntegrationPoints boundary_aux_data =
-      GetHGridIntegrationPoints(cutcell_data, cell, dx, dir);
-  if (!Base::GetHGridIntegration().IntegrateCellState(
-          boundary_state_, boundary_gradient_, states, gradient_x, gradient_y,
-          gradient_z, cutcell_data, boundary_aux_data, dx, dir)) {
-    boundary_state_ = interior_state_;
-    SetZero(boundary_gradient_);
-  }
-  const Coordinates<Rank> normal = GetBoundaryNormal(cutcell_data, cell);
-  Reflect(boundary_state_, boundary_state_, normal, equation_);
-  Reflect(boundary_gradient_, boundary_gradient_, normal, equation_);
+  const Coordinates<Rank> xB =
+      GetAbsoluteBoundaryCentroid(geom, integration.iB, h);
+  const Coordinates<Rank> xN = GetBoundaryNormal(geom, index);
+  const Coordinates<Rank> e_x = Eigen::Matrix<double, Rank, 1>::Unit(ix);
+  const Coordinates<Rank> e_y = Eigen::Matrix<double, Rank, 1>::Unit(iy);
+  const Coordinates<Rank> e_xr = e_x - 2.0 * e_x.dot(xN) * xN;
+  const Coordinates<Rank> e_yr = e_y - 2.0 * e_y.dot(xN) * xN;
+  const int sign_y = (xN[iy] > 0.0) - (xN[iy] < 0.0);
+  const Side side_y = xN[iy] > 0.0 ? Side::Lower : Side::Upper;
+  const Side flip_side_y = xN[iy] > 0.0 ? Side::Upper : Side::Lower;
+  if (betaL < betaR) {
+    //           Here we have the boundary from left
+    //
+    //        ------------- -------------
+    //       |             |             |
+    //       |             |             |
+    //       |     i       |      iR     |
+    //       |\            |             |
+    //       |  \          |             |
+    //       |    \        |             |
+    //        ------------- -------------
+    const Coordinates<Rank> xR = xB + 0.5 * h[ix] * e_x; // + sign_y * 0.5 * h[iy] * e_y;
+    ref.EvalAt(xR, interior_state_);
+    interior_gradient_ = gradient_[ix];
+    // rec_.Reconstruct(interior_rec_, interior_state_, gradient_[iy], dt, h[iy], Direction(iy), side_y);
+    // interior_state_ = interior_rec_;
 
-  // // TODO Here we need to require a reference velocity (u,v)
-  Load(reference_state_, boundary_reference_states, cell);
+    const Coordinates<Rank> xL = xB - 0.5 * h[ix] * e_xr; // - sign_y * 0.5 * h[iy] * e_yr;
+    ref.EvalAt(xL, boundary_state_);
+    Reflect(boundary_state_, boundary_state_, xN, equation_);
 
-  const Index<Rank> face_L = cell;
-  const Index<Rank> face_R = Shift(face_L, dir, 1);
-  const double betaL = cutcell_data.face_fractions[d](face_L);
-  const double betaR = cutcell_data.face_fractions[d](face_R);
-  // const double dBeta = betaR - betaL;
-  // const int sign = (dBeta > 0) - (dBeta < 0);
-  singly_shielded_factor_ = 0.0;
-  if (reference_state_.density > 0) {
-    const double u_star = euler::Velocity(equation_, reference_state_, d);
-    // mass flows out of the cut cell
-    // take data from the boundary cell
-    if (u_star * normal[d] >= 0) {
-      const Side upper = u_star > 0 ? Side::Upper : Side::Lower;
-      const Side lower = u_star > 0 ? Side::Lower : Side::Upper;
-      rec_.Reconstruct(boundary_rec_, boundary_state_, boundary_gradient_, dt, dx[d], dir, upper);
-      rec_.Reconstruct(interior_rec_, interior_state_, interior_gradient_, dt, dx[d], dir, lower);
-      StateFromComplete(equation_, scratch_, boundary_rec_);
-      const int u_star_sign = (u_star > 0) - (u_star < 0);
-      interior_rec_.momentum[d] *= u_star_sign;
-      const double p_star = FindPressure(std::abs(u_star), interior_rec_, dir);
-      const double pL = boundary_rec_.pressure;
-      const double rhoL_star = reference_state_.density;
-      RequireMassflow_SolveExactRiemannProblem RequireMassflow{};
-      RequireMassflow(equation_, scratch_, rhoL_star, std::abs(u_star), p_star, pL, dir);
-      scratch_.velocity[d] *= u_star_sign;
-      CompleteFromState(equation_, boundary_rec_, scratch_);
-      rec_.ReconstructInvers(boundary_state_, boundary_rec_, boundary_gradient_, dt, dx[d], dir, upper);
-    }
-    // mass flows into the cut cell
-    // take data from the interior cell
-    else {
-      const Side upper = u_star > 0 ? Side::Upper : Side::Lower;
-      const Side lower = u_star > 0 ? Side::Lower : Side::Upper;
-      rec_.Reconstruct(interior_rec_, interior_state_, interior_gradient_, dt, dx[d], dir, upper);
-      rec_.Reconstruct(boundary_rec_, boundary_state_, boundary_gradient_, dt, dx[d], dir, lower);
-      StateFromComplete(equation_, scratch_, interior_rec_);
-      const int u_star_sign = (u_star > 0) - (u_star < 0);
-      boundary_rec_.momentum[d] *= u_star_sign;
-      const double p_star = FindPressure(std::abs(u_star), boundary_rec_, dir);
-      const double pL = interior_rec_.pressure;
-      const double rhoL_star = reference_state_.density;
-      RequireMassflow_SolveExactRiemannProblem RequireMassflow{};
-      RequireMassflow(equation_, scratch_, rhoL_star, u_star, p_star, pL, dir);
-      scratch_.velocity[d] *= u_star_sign;
-      singly_shielded_factor_ = rhoL_star / interior_rec_.density;
-      CompleteFromState(equation_, interior_rec_, scratch_);
-      rec_.ReconstructInvers(interior_state_, interior_rec_, interior_gradient_, dt, dx[d], dir, upper);
-    }
+    // ApplyGradient(boundary_gradient_, grads, e_yr);
+    // rec_.Reconstruct(boundary_rec_, boundary_state_, boundary_gradient_, dt, h[iy], Direction(iy), flip_side_y);
+    ApplyGradient(boundary_gradient_, grads, e_xr);
+    // boundary_state_ = boundary_rec_;
+
+  } else if (betaL > betaR) {
+    //           Here we have the boundary from right
+    //
+    //        ------------- -------------
+    //       |             |             |
+    //       |             |             |
+    //       |     iL      |      i      |
+    //       |             |            /|
+    //       |             |          /  |
+    //       |             |        /    |
+    //        ------------- -------------
+    const Coordinates<Rank> xL = xB - 0.5 * h[d] * e_x; // + sign_y * 0.5 * h[iy] * e_y;
+    ref.EvalAt(xL, interior_state_);
+    interior_gradient_ = gradient_[ix];
+    // rec_.Reconstruct(interior_rec_, interior_state_, gradient_[iy], dt, h[iy], Direction(iy), side_y);
+    // interior_state_ = interior_rec_;
+
+    const Coordinates<Rank> xR = xB + 0.5 * h[d] * e_xr; // - sign_y * 0.5 * h[iy] * e_yr;
+    ref.EvalAt(xR, boundary_state_);
+    Reflect(boundary_state_, boundary_state_, xN, equation_);
+
+    // ApplyGradient(boundary_gradient_, grads, e_yr);
+    // rec_.Reconstruct(boundary_rec_, boundary_state_, boundary_gradient_, dt, h[iy], Direction(iy), flip_side_y);
+    ApplyGradient(boundary_gradient_, grads, e_xr);
+
+    // boundary_state_ = boundary_rec_;
   }
 
   if (betaL < betaR) {
@@ -254,20 +301,18 @@ void HGridReconstruction2<Equation, GradientT, ReconstructionMethod>::
 
     Load(h_grid_singly_shielded_gradients[1], gradients[d], iR);
 
-    if (singly_shielded_factor_) {
-      StateFromComplete(equation_, boundary_scratch_, h_grid_eb[1]);
-      ForEachComponent(
-          [&](double& Q_r, double& dQ_r, double Q_b, double dQ_b, double Q_i,
-              double dQ_i) {
-            Q_r = (1.0 - alpha) * (Q_b + 0.5 * alpha * dx[d] * dQ_b) +
-                  alpha * (Q_i + 0.5 * (1.0 - alpha) * dx[d] * dQ_i);
-            dQ_r = (1.0 - alpha) * dQ_b + alpha * dQ_i;
-          },
-          integral_scratch_, h_grid_singly_shielded_gradients[1],
-          boundary_scratch_, gradient_[d], scratch_, gradient_[d]);
-      CompleteFromState(equation_, h_grid_singly_shielded[1],
-                        integral_scratch_);
-    }
+    StateFromComplete(equation_, boundary_scratch_, h_grid_eb[1]);
+    ForEachComponent(
+        [&](double& Q_r, double& dQ_r, double Q_b, double dQ_b, double Q_i,
+            double dQ_i) {
+          Q_r = (1.0 - alpha) * (Q_b + 0.5 * alpha * dx[d] * dQ_b) +
+                alpha * (Q_i + 0.5 * (1.0 - alpha) * dx[d] * dQ_i);
+          dQ_r = (1.0 - alpha) * dQ_b + alpha * dQ_i;
+        },
+        integral_scratch_, h_grid_singly_shielded_gradients[1],
+        boundary_scratch_, h_grid_eb_gradients[1], scratch_, gradient_[d]);
+    CompleteFromState(equation_, h_grid_singly_shielded[1],
+                      integral_scratch_);
 
     Load(boundary_state_, states, cell);
     Load(gradient_[0], gradient_x, cell);
@@ -313,20 +358,18 @@ void HGridReconstruction2<Equation, GradientT, ReconstructionMethod>::
 
     Load(h_grid_singly_shielded_gradients[0], gradients[d], iL);
 
-    if (singly_shielded_factor_) {
-      StateFromComplete(equation_, boundary_scratch_, h_grid_eb[0]);
-      ForEachComponent(
-          [&](double& Q_r, double& dQ_r, double Q_b, double dQ_b, double Q_i,
-              double dQ_i) {
-            Q_r = (1.0 - alpha) * (Q_b - 0.5 * alpha * dx[d] * dQ_b) +
-                  alpha * (Q_i - 0.5 * (1.0 - alpha) * dx[d] * dQ_i);
-            dQ_r = (1.0 - alpha) * dQ_b + alpha * dQ_i;
-          },
-          integral_scratch_, h_grid_singly_shielded_gradients[0],
-          boundary_scratch_, gradient_[d], scratch_, gradient_[d]);
-      CompleteFromState(equation_, h_grid_singly_shielded[0],
-                        integral_scratch_);
-    }
+    StateFromComplete(equation_, boundary_scratch_, h_grid_eb[0]);
+    ForEachComponent(
+        [&](double& Q_r, double& dQ_r, double Q_b, double dQ_b, double Q_i,
+            double dQ_i) {
+          Q_r = (1.0 - alpha) * (Q_b - 0.5 * alpha * dx[d] * dQ_b) +
+                alpha * (Q_i - 0.5 * (1.0 - alpha) * dx[d] * dQ_i);
+          dQ_r = (1.0 - alpha) * dQ_b + alpha * dQ_i;
+        },
+        integral_scratch_, h_grid_singly_shielded_gradients[0],
+        boundary_scratch_, h_grid_eb_gradients[0], scratch_, gradient_[d]);
+    CompleteFromState(equation_, h_grid_singly_shielded[0],
+                      integral_scratch_);
 
     Load(boundary_state_, states, cell);
     StateFromComplete(equation_, scratch_, boundary_state_);
