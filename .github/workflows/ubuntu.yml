@@ -31,14 +31,16 @@ jobs:
       run: conan profile new --detect default && conan profile update settings.compiler.libcxx=libstdc++11 default
 
     - name: Create conan packages
-      run: conan create ${{github.workspace}}/conan/conan-hdf5 HDF5/1.10@local/stable
-      run: conan create ${{github.workspace}}/conan/conan-amrex AMReX/development@local/stable
-      run: conan create ${{github.workspace}}/conan/conan-vc Vc/1.4.3@local/stable
-      run: conan create ${{github.workspace}}/conan/conan-fmt fmt/9.0.0@local/stable
+      run: |
+        conan create ${{github.workspace}}/conan/conan-hdf5 HDF5/1.10@local/stable
+        conan create ${{github.workspace}}/conan/conan-amrex AMReX/development@local/stable
+        conan create ${{github.workspace}}/conan/conan-vc Vc/1.4.3@local/stable
+        conan create ${{github.workspace}}/conan/conan-fmt fmt/9.0.0@local/stable
 
     - name: Configure CMake
-      run: conan install ${{github.workspace}} -s AMReX:build_type=${{env.BUILD_TYPE}} -o AMReX:dim=2 -o AMReX:omp=False --build missing --install-folder /build
-      run: cmake ${{github.workspace}} -B /build -D CMAKE_BUILD_TYPE=${{env.BUILD_TYPE}}
+      run: |
+        conan install ${{github.workspace}} -s AMReX:build_type=${{env.BUILD_TYPE}} -o AMReX:dim=2 -o AMReX:omp=False --build missing --install-folder /build
+        cmake ${{github.workspace}} -B /build -D CMAKE_BUILD_TYPE=${{env.BUILD_TYPE}}
 
     - name: Build
       run: cmake --build /build --config ${{env.BUILD_TYPE}}
