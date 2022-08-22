@@ -2,7 +2,7 @@ FROM ubuntu:22.04
 
 RUN apt-get update && apt-get upgrade -y
 
-RUN apt-get install -y python3-pip cmake g++ git python3 libopenmpi-dev
+RUN apt-get install -y python3-pip cmake g++ git python3 libopenmpi-dev pybind11-dev librange-v3-dev
 
 RUN pip3 install conan
 
@@ -10,8 +10,18 @@ RUN conan profile new --detect default && conan profile update settings.compiler
 
 RUN git clone https://github.com/maikel/FiniteVolumeSolver.git /FiniteVolumeSolver
 
-RUN conan create /FiniteVolumeSolver/conan/conan-amrex AMReX/development@local/stable
+RUN git -C /FiniteVolumeSolver checkout feature/Github-Actions
 
 RUN conan create /FiniteVolumeSolver/conan/conan-hdf5 HDF5/1.10@local/stable
 
+RUN conan create /FiniteVolumeSolver/conan/conan-amrex AMReX/development@local/stable
+
 RUN conan create /FiniteVolumeSolver/conan/conan-vc Vc/1.4.3@local/stable
+
+RUN conan create /FiniteVolumeSolver/conan/conan-fmt fmt/9.0.0@local/stable
+
+RUN conan install /FiniteVolumeSolver -s AMReX:build_type=Debug -o AMReX:dim=2 -o AMReX:omp=False --build missing --install-folder /build
+
+RUN cmake /FiniteVolumeSolver -B /build -D CMAKE_BUILD_TYPE=Debug
+
+RUN cmake --build /build
