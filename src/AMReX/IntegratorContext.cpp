@@ -21,6 +21,7 @@
 #include "fub/AMReX/IntegratorContext.hpp"
 
 #include "fub/AMReX/ForEachIndex.hpp"
+#include "fub/AMReX/MultiFabUtilities.hpp"
 #include "fub/AMReX/ViewFArrayBox.hpp"
 #include "fub/AMReX/boundary_condition/BoundaryConditionRef.hpp"
 #include "fub/core/algorithm.hpp"
@@ -32,16 +33,76 @@
 
 #include <fmt/format.h>
 
+#include <range/v3/view/zip.hpp>
+
 namespace fub::amrex {
+
+////////////////////////////////////////////////////////////////////////////////
+//                                   IntegratorContextOptions
+
+#ifndef FUB_ASSIGN_OPTION_FROM_MAP
+#define FUB_ASSIGN_OPTION_FROM_MAP(map, var) var = GetOptionOr(map, #var, var)
+#endif
+IntegratorContextOptions::IntegratorContextOptions(
+    const ProgramOptions& options) {
+  FUB_ASSIGN_OPTION_FROM_MAP(options, scratch_gcw);
+  FUB_ASSIGN_OPTION_FROM_MAP(options, flux_gcw);
+  FUB_ASSIGN_OPTION_FROM_MAP(options, regrid_frequency);
+}
+
+#ifndef FUB_PRINT_OPTION_LOG
+#define FUB_PRINT_OPTION_LOG(log, var)                                         \
+  BOOST_LOG(log) << "  - " #var " = " << var;
+#endif
+void IntegratorContextOptions::Print(SeverityLogger& log) const {
+  FUB_PRINT_OPTION_LOG(log, scratch_gcw);
+  FUB_PRINT_OPTION_LOG(log, flux_gcw);
+  FUB_PRINT_OPTION_LOG(log, regrid_frequency);
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 //                                   IntegratorContext::LevelData
 
 ////////////////////////////////////////////////////////////////////////////////
+// Copy Constructor
+
+IntegratorContext::LevelData::LevelData(const LevelData& other)
+    : scratch(CopyMultiFab(other.scratch)), fluxes{}, coarse_fine{} {
+  if (other.coarse_fine.fineLevel() > 0) {
+    // If we do not invoke clear in beforehand it will throw an error in AMReX
+    coarse_fine.clear();
+    coarse_fine.define(scratch.boxArray(), scratch.DistributionMap(),
+                       other.coarse_fine.refRatio(),
+                       other.coarse_fine.fineLevel(),
+                       other.coarse_fine.nComp());
+  }
+  for (auto&& [flux, of] : ranges::view::zip(fluxes, other.fluxes)) {
+    if (of.ok()) {
+      flux.define(of.boxArray(), of.DistributionMap(), of.nComp(),
+                  of.nGrowVect(), ::amrex::MFInfo().SetArena(of.arena()),
+                  of.Factory());
+      flux.setVal(0.0);
+    }
+  }
+  time_point = other.time_point;
+  regrid_time_point = other.regrid_time_point;
+  cycles = other.cycles;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+// Copy Assignment Operator
+
+IntegratorContext::LevelData& IntegratorContext::LevelData::
+operator=(const LevelData& other) {
+  LevelData tmp(other);
+  return *this = std::move(tmp);
+}
+
+////////////////////////////////////////////////////////////////////////////////
 // Move Assignment Operator
 
-IntegratorContext::LevelData&
-IntegratorContext::LevelData::operator=(LevelData&& other) noexcept {
+IntegratorContext::LevelData& IntegratorContext::LevelData::
+operator=(LevelData&& other) noexcept {
   if (other.coarse_fine.fineLevel() > 0) {
     // If we do not invoke clear in beforehand it will throw an error in AMReX
     coarse_fine.clear();
@@ -68,68 +129,55 @@ IntegratorContext::LevelData::operator=(LevelData&& other) noexcept {
 // Each adds a factor of two to the ghost cell width requirements on coarse fine
 // boundaries.
 IntegratorContext::IntegratorContext(
-    std::shared_ptr<GriddingAlgorithm> gridding, HyperbolicMethod hm)
-    : cell_ghost_cell_width_{hm.flux_method.GetStencilWidth() * 2 * 2},
-      face_ghost_cell_width_{cell_ghost_cell_width_ -
-                             hm.flux_method.GetStencilWidth()},
-      gridding_{std::move(gridding)}, data_{}, method_{std::move(hm)} {
-  data_.reserve(
-      static_cast<std::size_t>(GetPatchHierarchy().GetMaxNumberOfLevels()));
-  // Allocate auxiliary data arrays for each refinement level in the hierarchy
-  ResetHierarchyConfiguration();
-  std::size_t n_levels =
-      static_cast<std::size_t>(GetPatchHierarchy().GetNumberOfLevels());
-  for (std::size_t i = 0; i < n_levels; ++i) {
-    const auto level = static_cast<int>(i);
-    data_[i].cycles =
-        gridding_->GetPatchHierarchy().GetPatchLevel(level).cycles;
-    data_[i].time_point =
-        gridding_->GetPatchHierarchy().GetPatchLevel(level).time_point;
-    data_[i].regrid_time_point = data_[i].time_point;
-  }
+    std::shared_ptr<GriddingAlgorithm> gridding, HyperbolicMethod hm,
+    const IntegratorContextOptions& options)
+    : options_{options}, gridding_{std::move(gridding)}, data_{}, method_{
+                                                                      std::move(
+                                                                          hm)} {
+  // data_.reserve(
+  //     static_cast<std::size_t>(GetPatchHierarchy().GetMaxNumberOfLevels()));
+  // // Allocate auxiliary data arrays for each refinement level in the
+  // hierarchy ResetHierarchyConfiguration(); std::size_t n_levels =
+  //     static_cast<std::size_t>(GetPatchHierarchy().GetNumberOfLevels());
+  // for (std::size_t i = 0; i < n_levels; ++i) {
+  //   const auto level = static_cast<int>(i);
+  //   data_[i].cycles =
+  //       gridding_->GetPatchHierarchy().GetPatchLevel(level).cycles;
+  //   data_[i].time_point =
+  //       gridding_->GetPatchHierarchy().GetPatchLevel(level).time_point;
+  //   data_[i].regrid_time_point = data_[i].time_point;
+  // }
 }
 
 IntegratorContext::IntegratorContext(
     std::shared_ptr<GriddingAlgorithm> gridding, HyperbolicMethod nm,
     int cell_gcw, int face_gcw)
-    : cell_ghost_cell_width_{cell_gcw}, face_ghost_cell_width_{face_gcw},
-      gridding_{std::move(gridding)}, data_{}, method_{std::move(nm)} {
-  data_.reserve(
-      static_cast<std::size_t>(GetPatchHierarchy().GetMaxNumberOfLevels()));
-  // Allocate auxiliary data arrays for each refinement level in the hierarchy
-  ResetHierarchyConfiguration();
-  std::size_t n_levels =
-      static_cast<std::size_t>(GetPatchHierarchy().GetNumberOfLevels());
-  for (std::size_t i = 0; i < n_levels; ++i) {
-    const auto level = static_cast<int>(i);
-    data_[i].cycles =
-        gridding_->GetPatchHierarchy().GetPatchLevel(level).cycles;
-    data_[i].time_point =
-        gridding_->GetPatchHierarchy().GetPatchLevel(level).time_point;
-    data_[i].regrid_time_point = data_[i].time_point;
-  }
+    : options_{}, gridding_{std::move(gridding)}, data_{}, method_{
+                                                               std::move(nm)} {
+  options_.scratch_gcw = cell_gcw;
+  options_.flux_gcw = face_gcw;
+  // data_.reserve(
+  //     static_cast<std::size_t>(GetPatchHierarchy().GetMaxNumberOfLevels()));
+  // // Allocate auxiliary data arrays for each refinement level in the
+  // hierarchy ResetHierarchyConfiguration(); std::size_t n_levels =
+  //     static_cast<std::size_t>(GetPatchHierarchy().GetNumberOfLevels());
+  // for (std::size_t i = 0; i < n_levels; ++i) {
+  //   const auto level = static_cast<int>(i);
+  //   data_[i].cycles =
+  //       gridding_->GetPatchHierarchy().GetPatchLevel(level).cycles;
+  //   data_[i].time_point =
+  //       gridding_->GetPatchHierarchy().GetPatchLevel(level).time_point;
+  //   data_[i].regrid_time_point = data_[i].time_point;
+  // }
 }
 
 IntegratorContext::IntegratorContext(const IntegratorContext& other)
-    : cell_ghost_cell_width_{other.cell_ghost_cell_width_},
-      face_ghost_cell_width_{other.face_ghost_cell_width_},
-      gridding_{other.gridding_},
-      data_(static_cast<std::size_t>(GetPatchHierarchy().GetNumberOfLevels())),
-      method_{other.method_} {
-  // Allocate auxiliary data arrays
-  ResetHierarchyConfiguration();
-  // Copy time stamps and cycle counters
-  std::size_t n_levels =
-      static_cast<std::size_t>(GetPatchHierarchy().GetNumberOfLevels());
-  for (std::size_t i = 0; i < n_levels; ++i) {
-    data_[i].cycles = other.data_[i].cycles;
-    data_[i].time_point = other.data_[i].time_point;
-    data_[i].regrid_time_point = other.data_[i].regrid_time_point;
-  }
-}
+    : options_{other.options_}, gridding_{std::make_shared<GriddingAlgorithm>(
+                                    *other.gridding_)},
+      data_{}, method_{other.method_} {}
 
-IntegratorContext& IntegratorContext::IntegratorContext::operator=(
-    const IntegratorContext& other) {
+IntegratorContext& IntegratorContext::IntegratorContext::
+operator=(const IntegratorContext& other) {
   // We use the copy and move idiom to provide the strong exception guarantee.
   // If an exception occurs we do not change the original object.
   IntegratorContext tmp{other};
@@ -144,6 +192,11 @@ IntegratorContext::GetGriddingAlgorithm() const noexcept {
   return gridding_;
 }
 
+const HyperbolicMethod& IntegratorContext::GetHyperbolicMethod() const
+    noexcept {
+  return method_;
+}
+
 PatchHierarchy& IntegratorContext::GetPatchHierarchy() noexcept {
   return gridding_->GetPatchHierarchy();
 }
@@ -154,6 +207,10 @@ const PatchHierarchy& IntegratorContext::GetPatchHierarchy() const noexcept {
 
 MPI_Comm IntegratorContext::GetMpiCommunicator() const noexcept {
   return ::amrex::ParallelContext::CommunicatorAll();
+}
+
+const IntegratorContextOptions& IntegratorContext::GetOptions() const noexcept {
+  return options_;
 }
 
 const std::shared_ptr<CounterRegistry>&
@@ -244,6 +301,7 @@ void IntegratorContext::ResetHierarchyConfiguration(int first_level) {
       GetPatchHierarchy().GetDataDescription().n_cons_components;
   const int new_n_levels = GetPatchHierarchy().GetNumberOfLevels();
   data_.resize(static_cast<std::size_t>(new_n_levels));
+  const ::amrex::MFInfo& mf_info = GetPatchHierarchy().GetMFInfo();
   for (int level = first_level; level < new_n_levels; ++level) {
     LevelData& data = data_[static_cast<std::size_t>(level)];
     const ::amrex::BoxArray& ba =
@@ -253,17 +311,16 @@ void IntegratorContext::ResetHierarchyConfiguration(int first_level) {
     const int n_comp =
         GetPatchHierarchy().GetDataDescription().n_state_components;
     ::amrex::IntVect grow = ::amrex::IntVect::TheZeroVector();
-    for (int i = 0; i < GetPatchHierarchy().GetDataDescription().dimension;
-         ++i) {
-      grow[i] = cell_ghost_cell_width_;
+    for (int i = 0; i < Rank(); ++i) {
+      grow[i] = options_.scratch_gcw;
     }
-    data.scratch.define(ba, dm, n_comp, grow);
+    data.scratch.define(ba, dm, n_comp, grow, mf_info);
     for (std::size_t d = 0; d < static_cast<std::size_t>(AMREX_SPACEDIM); ++d) {
       const ::amrex::BoxArray fba =
           ::amrex::convert(ba, ::amrex::IntVect::TheDimensionVector(int(d)));
       ::amrex::IntVect fgrow = grow;
-      fgrow[int(d)] = face_ghost_cell_width_;
-      data.fluxes[d].define(fba, dm, n_cons_components, fgrow);
+      fgrow[int(d)] = options_.flux_gcw;
+      data.fluxes[d].define(fba, dm, n_cons_components, fgrow, mf_info);
       data.fluxes[d].setVal(0.0);
     }
     if (level > 0) {
@@ -277,11 +334,23 @@ void IntegratorContext::ResetHierarchyConfiguration(int first_level) {
        ++level_num) {
     CopyDataToScratch(level_num);
   }
+  for (std::size_t i = 0; i < data_.size(); ++i) {
+    const auto level = static_cast<int>(i);
+    data_[i].cycles =
+        gridding_->GetPatchHierarchy().GetPatchLevel(level).cycles;
+    data_[i].time_point =
+        gridding_->GetPatchHierarchy().GetPatchLevel(level).time_point;
+    data_[i].regrid_time_point = data_[i].time_point;
+  }
 }
 
 void IntegratorContext::SetTimePoint(Duration dt, int level) {
   const std::size_t l = static_cast<std::size_t>(level);
   data_[l].time_point = dt;
+}
+
+void IntegratorContext::SetPostAdvanceHierarchyFeedback(FeedbackFn feedback) {
+  post_advance_hierarchy_feedback_ = std::move(feedback);
 }
 
 void IntegratorContext::SetCycles(std::ptrdiff_t cycles, int level) {
@@ -463,6 +532,12 @@ void IntegratorContext::ApplyFluxCorrection(
   }
 }
 
+void IntegratorContext::SetComputeStableDt(
+    std::function<Duration(IntegratorContext&, int, Direction)>
+        compute_stable_dt) {
+  user_compute_stable_dt_ = std::move(compute_stable_dt);
+}
+
 Duration IntegratorContext::ComputeStableDt(int level, Direction dir) {
   Timer timer1 =
       GetCounterRegistry()->get_timer("IntegratorContext::ComputeStableDt");
@@ -470,6 +545,9 @@ Duration IntegratorContext::ComputeStableDt(int level, Direction dir) {
   if (count_per_level) {
     timer_per_level = GetCounterRegistry()->get_timer(
         fmt::format("IntegratorContext::ComputeStableDt({})", level));
+  }
+  if (user_compute_stable_dt_) {
+    return user_compute_stable_dt_(*this, level, dir);
   }
   return method_.flux_method.ComputeStableDt(*this, level, dir);
 }
@@ -513,7 +591,7 @@ void IntegratorContext::UpdateConservatively(int level, Duration dt,
   method_.time_integrator.UpdateConservatively(*this, level, dt, dir);
 }
 
-int IntegratorContext::PreAdvanceLevel(int level_num, Duration,
+int IntegratorContext::PreAdvanceLevel(int level_num, Duration dt,
                                        std::pair<int, int> subcycle) {
   Timer timer =
       GetCounterRegistry()->get_timer("IntegratorContext::PreAdvanceLevel");
@@ -522,6 +600,8 @@ int IntegratorContext::PreAdvanceLevel(int level_num, Duration,
     timer_per_level = GetCounterRegistry()->get_timer(
         fmt::format("IntegratorContext::PreAdvanceLevel({})", level_num));
   }
+  GetPatchHierarchy().SetStabledt(dt);
+  
   const std::size_t l = static_cast<std::size_t>(level_num);
   const int max_level = GetPatchHierarchy().GetMaxNumberOfLevels();
   int regrid_level = max_level;
@@ -591,13 +671,27 @@ IntegratorContext::PostAdvanceLevel(int level_num, Duration dt,
   return boost::outcome_v2::success();
 }
 
-void IntegratorContext::PostAdvanceHierarchy() {
+void IntegratorContext::PreAdvanceHierarchy() {
+  if (static_cast<int>(data_.size()) !=
+      GetPatchHierarchy().GetNumberOfLevels()) {
+    ResetHierarchyConfiguration();
+  }
+  if (data_[0].scratch.getBDKey() !=
+      GetPatchHierarchy().GetPatchLevel(0).data.getBDKey()) {
+    ResetHierarchyConfiguration();
+  }
+}
+
+void IntegratorContext::PostAdvanceHierarchy(Duration dt) {
   PatchHierarchy& hierarchy = GetPatchHierarchy();
   int nlevels = hierarchy.GetNumberOfLevels();
   const Duration time_point = GetTimePoint();
   for (int level = 0; level < nlevels; ++level) {
     hierarchy.GetPatchLevel(level).time_point = time_point;
     hierarchy.GetPatchLevel(level).cycles = GetCycles(level);
+  }
+  if (post_advance_hierarchy_feedback_) {
+    post_advance_hierarchy_feedback_(*this, dt);
   }
 }
 

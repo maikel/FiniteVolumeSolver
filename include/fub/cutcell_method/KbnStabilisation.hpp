@@ -94,6 +94,8 @@ public:
   ///
   /// \param[in] states the source view of states which will used as a
   ///            reference state.
+  ///
+  /// \param[in] cutcell_data the cut cell data.
   void PreAdvanceHierarchy(const View<Complete>& references,
                            const View<const Complete>& states,
                            const CutCellData<Rank>& cutcell_data);
@@ -102,6 +104,7 @@ public:
   ///
   /// \param[out] flux the storage for the result.
   /// \param[in,out] state the state in the cut cell.
+  /// \param[in] reference_state the reference state for the cut cell.
   /// \param[in] boundary_normal the boundary normal of the cutcell
   /// \param[in] dir the split direction for the flux
   /// \param[in] dt the current time step size
@@ -109,13 +112,16 @@ public:
   void
   ComputeBoundaryFlux(Conservative& flux, Complete& state,
                       const Complete& reference_state,
+                      const Complete& reference_mirror_state,
                       const Eigen::Matrix<double, Rank, 1>& boundary_normal,
-                      Direction dir, Duration dt, double dx);
+                      int mask, Direction dir, Duration dt, double dx);
 
   /// This function can be used to compute a boundary flux for all cut cells.
   void ComputeBoundaryFluxes(const View<Conservative>& boundary_fluxes,
                              const View<const Complete>& states,
                              const View<const Complete>& reference_states,
+                             const View<const Complete>& reference_mirror_states,
+                             const StridedDataView<int, Rank>& reference_masks,
                              const CutCellData<Rank>& cutcell_data, Duration dt,
                              double dx, Direction dir);
 
@@ -148,6 +154,7 @@ private:
   Complete solution_{FM::GetEquation()};
   Complete reflected_{FM::GetEquation()};
   Complete reference_state_{FM::GetEquation()};
+  Complete reference_mirror_state_{FM::GetEquation()};
   Conservative cutcell_flux_{FM::GetEquation()};
   Conservative regular_flux_{FM::GetEquation()};
   Conservative boundary_flux_left_{FM::GetEquation()};
@@ -205,35 +212,44 @@ void KbnCutCellMethod<FM, RiemannSolver>::PreAdvanceHierarchy(
 template <typename FM, typename RiemannSolver>
 void KbnCutCellMethod<FM, RiemannSolver>::ComputeBoundaryFlux(
     Conservative& flux, Complete& state, const Complete& reference_state,
-    const Eigen::Matrix<double, Rank, 1>& boundary_normal, Direction dir,
-    Duration /* dt */, double /* dx */) {
+    const Complete& reference_mirror_state,
+    const Eigen::Matrix<double, Rank, 1>& boundary_normal, int mask,
+    Direction dir, Duration /* dt */, double /* dx */) {
   const Equation& equation = FM::GetEquation();
+  equation.Flux(flux, reference_state, dir);
   const Eigen::Matrix<double, Rank, 1> unit = UnitVector<Rank>(Direction::X);
 
-  // Rotate states such that the boundary is left and the state is right
-  // Reflect state in the split direction
-  Rotate(state, state, MakeRotation(boundary_normal, unit), equation);
-  Reflect(reflected_, state, unit, equation);
-  riemann_solver_.SolveRiemannProblem(solution_, reflected_, state,
-                                      Direction::X);
-  Rotate(solution_, solution_, MakeRotation(unit, boundary_normal), equation);
-
+  if (mask) {
+    Rotate(state, state, MakeRotation(boundary_normal, unit), equation);
+    riemann_solver_.SolveRiemannProblem(solution_, reference_mirror_state,
+                                        state, Direction::X);
+    Rotate(solution_, solution_, MakeRotation(unit, boundary_normal), equation);
+  } else {
+    // Rotate states such that the boundary is left and the state is right
+    // Reflect state in the split direction
+    Rotate(state, state, MakeRotation(boundary_normal, unit), equation);
+    Reflect(reflected_, state, unit, equation);
+    riemann_solver_.SolveRiemannProblem(solution_, reflected_, state,
+                                        Direction::X);
+    Rotate(solution_, solution_, MakeRotation(unit, boundary_normal), equation);
+  }
   const int d = static_cast<int>(dir);
-  const double u_advective =
-      reference_state.momentum[d] / reference_state.density;
-  const double u_solution = solution_.momentum[d] / solution_.density;
-
-  equation.Flux(flux, reference_state, dir);
+  // const double u_advective =
+  //     reference_state.momentum[d] / reference_state.density;
+  // const double u_solution = solution_.momentum[d] / solution_.density;
   flux.momentum[d] += solution_.pressure - reference_state.pressure;
-  flux.energy +=
-      u_solution * solution_.pressure - u_advective * reference_state.pressure;
+  // This is wrong and destroys conservation for energy
+  // flux.energy +=
+  //     u_solution * solution_.pressure - u_advective * reference_state.pressure;
 }
 
 template <typename FM, typename RiemannSolver>
 void KbnCutCellMethod<FM, RiemannSolver>::ComputeBoundaryFluxes(
     const View<Conservative>& boundary_fluxes,
     const View<const Complete>& states,
-    const View<const Complete>& reference_states, const CutCellData<Rank>& geom,
+    const View<const Complete>& reference_states,
+    const View<const Complete>& reference_mirror_states,
+    const StridedDataView<int, Rank>& masks, const CutCellData<Rank>& geom,
     Duration dt, double dx, Direction dir) {
   FUB_ASSERT(Extents<0>(boundary_fluxes) == Extents<0>(states));
   ForEachIndex(Box<0>(reference_states), [&](auto... is) {
@@ -242,11 +258,13 @@ void KbnCutCellMethod<FM, RiemannSolver>::ComputeBoundaryFluxes(
       std::array<std::ptrdiff_t, sRank> cell{is...};
       Load(state_, states, cell);
       Load(reference_state_, reference_states, cell);
+      Load(reference_mirror_state_, reference_mirror_states, cell);
       const Eigen::Matrix<double, Rank, 1> normal =
           GetBoundaryNormal(geom, cell);
 
       this->ComputeBoundaryFlux(boundary_flux_left_, state_, reference_state_,
-                                normal, dir, dt, dx);
+                                reference_mirror_state_, normal, masks(cell),
+                                dir, dt, dx);
 
       // Store the result in our array
       Store(boundary_fluxes, boundary_flux_left_, cell);

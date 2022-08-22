@@ -35,7 +35,11 @@ public:
   using ProgramOptions = std::map<std::string, pybind11::object>;
   OutputFactory() = default;
 
-  template <typename Output, typename... Args>
+  template <typename Output, typename... Args,
+            typename = std::enable_if_t<std::is_constructible<
+                Output, const ProgramOptions&, remove_cvref_t<Args>...>::value>,
+            typename = std::enable_if_t<
+                std::is_base_of<BasicOutput<Grid>, Output>::value>>
   bool RegisterOutput(std::string name, Args&&... args) {
     return factories_
         .emplace(name,

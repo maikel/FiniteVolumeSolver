@@ -35,7 +35,7 @@ public:
 
   AxiSymmetricSourceTerm(const IdealGasMix<2>& eq);
 
-  Duration ComputeStableDt(int level);
+  Duration ComputeStableDt(const cutcell::IntegratorContext&, int level);
 
   Result<void, TimeStepTooLarge>
   AdvanceLevel(cutcell::IntegratorContext& simulation_data, int level,

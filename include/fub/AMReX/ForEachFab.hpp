@@ -51,7 +51,7 @@ void ForEachFab(execution::OpenMpTag, const ::amrex::FabArrayBase& fabarray,
 #if defined(_OPENMP) && defined(AMREX_USE_OMP)
 #pragma omp parallel
 #endif
-  for (::amrex::MFIter mfi(fabarray, true); mfi.isValid(); ++mfi) {
+  for (::amrex::MFIter mfi(fabarray, ::amrex::IntVect(AMREX_D_DECL(1024000,16,32))); mfi.isValid(); ++mfi) {
     function(mfi);
   }
 }

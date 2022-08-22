@@ -52,7 +52,7 @@ MakeIndexSpaces(GShop&& shop, const ::amrex::Geometry& coarse_geom, int n_level,
   std::vector<const ::amrex::EB2::IndexSpace*> index_spaces(
       static_cast<std::size_t>(n_level));
   ::amrex::Geometry geom = coarse_geom;
-  ::amrex::EB2::Build(shop, geom, 0, 0, ngrow);
+  ::amrex::EB2::Build(shop, geom, 0, 0, ngrow, true, false);
   index_spaces[0] = &::amrex::EB2::IndexSpace::top();
   for (int level = 1; level < n_level; ++level) {
     geom.refine({AMREX_D_DECL(2, 2, 2)});
@@ -66,9 +66,9 @@ MakeIndexSpaces(GShop&& shop, const ::amrex::Geometry& coarse_geom, int n_level,
 template <typename GShop>
 std::vector<const ::amrex::EB2::IndexSpace*>
 MakeIndexSpaces(GShop&& shop, const CartesianGridGeometry& grid_geometry,
-                const fub::amrex::PatchHierarchyOptions& hierarchy_options) {
+                const fub::amrex::cutcell::PatchHierarchyOptions& hierarchy_options) {
   return MakeIndexSpaces(shop, GetCoarseGeometry(grid_geometry),
-                         hierarchy_options.max_number_of_levels);
+                         hierarchy_options.max_number_of_levels, hierarchy_options.ngrow_eb_level_set);
 }
 
 } // namespace cutcell

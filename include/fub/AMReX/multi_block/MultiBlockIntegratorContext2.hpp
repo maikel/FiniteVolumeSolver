@@ -26,6 +26,9 @@
 
 #include "fub/AMReX/multi_block/MultiBlockGriddingAlgorithm2.hpp"
 
+#include "fub/EinfeldtSignalVelocities.hpp"
+#include "fub/flux_method/HllMethod.hpp"
+
 #include <memory>
 #include <vector>
 
@@ -34,12 +37,27 @@ namespace fub::amrex {
 /// \ingroup IntegratorContext
 class MultiBlockIntegratorContext2 {
 public:
+  using FeedbackFn =
+      std::function<void(MultiBlockIntegratorContext2&, Duration)>;
+
   template <typename TubeEquation, typename PlenumEquation>
   MultiBlockIntegratorContext2(const TubeEquation& tube_equation,
                                const PlenumEquation& plenum_equation,
                                std::vector<IntegratorContext> tubes,
                                std::vector<cutcell::IntegratorContext> plena,
                                std::vector<BlockConnection> connectivity);
+
+  MultiBlockIntegratorContext2(const MultiBlockIntegratorContext2& other);
+  MultiBlockIntegratorContext2&
+  operator=(const MultiBlockIntegratorContext2& other);
+
+  MultiBlockIntegratorContext2(MultiBlockIntegratorContext2&& other) noexcept =
+      default;
+  MultiBlockIntegratorContext2&
+  operator=(MultiBlockIntegratorContext2&& other) noexcept = default;
+
+  ~MultiBlockIntegratorContext2() noexcept = default;
+
   /// @{
   /// \name Member Accessors
   [[nodiscard]] span<IntegratorContext> Tubes() noexcept;
@@ -51,6 +69,10 @@ public:
   [[nodiscard]] const std::shared_ptr<MultiBlockGriddingAlgorithm2>&
   GetGriddingAlgorithm() const noexcept;
 
+  const IntegratorContextOptions& GetOptions() const noexcept {
+    return plena_[0].GetOptions();
+  }
+
   /// \brief Returns the current time level for data at the specified refinement
   /// level and direction.
   [[nodiscard]] Duration GetTimePoint(int level = 0) const;
@@ -59,9 +81,6 @@ public:
   /// refinement level and direction.
   [[nodiscard]] std::ptrdiff_t GetCycles(int level = 0) const;
   /// @}
-
-  /// \brief Returns the current boundary condition for the specified level.
-  [[nodiscard]] MultiBlockBoundary& GetBoundaryCondition(int level);
 
   [[nodiscard]] MPI_Comm GetMpiCommunicator() const noexcept;
 
@@ -85,6 +104,10 @@ public:
   /// @{
   /// \name Modifiers
 
+  /// \brief Synchronize internal ghost cell data for each inter domain
+  /// connection.
+  void ComputeMultiBlockBoundaryData(int level);
+
   void CopyDataToScratch(int level);
   void CopyScratchToData(int level);
 
@@ -105,6 +128,12 @@ public:
 
   /// \brief Sets the time point for a specific level number and direction.
   void SetTimePoint(Duration t, int level);
+
+  /// \brief Sets a feedback function that will be called in
+  /// PostAdvanceHierarchy.
+  ///
+  /// This is used to inject user defined behaviour after each time step
+  void SetPostAdvanceHierarchyFeedback(FeedbackFn feedback);
   /// @}
 
   /// @{
@@ -112,7 +141,7 @@ public:
 
   void PreAdvanceHierarchy();
 
-  void PostAdvanceHierarchy();
+  void PostAdvanceHierarchy(Duration dt);
 
   /// \brief On each first subcycle this will regrid the data if neccessary.
   int PreAdvanceLevel(int level_num, Duration dt, std::pair<int, int> subcycle);
@@ -127,6 +156,7 @@ public:
   ///
   /// \param level  The refinement level on which the boundary condition shall
   /// be used.
+  /// \param dir The dimensional split direction which will be used.
   void ApplyBoundaryCondition(int level, Direction dir);
 
   /// \brief Fills the ghost layer of the scratch data and interpolates in the
@@ -172,6 +202,12 @@ private:
   std::vector<IntegratorContext> tubes_;
   std::vector<cutcell::IntegratorContext> plena_;
   std::shared_ptr<MultiBlockGriddingAlgorithm2> gridding_;
+  FeedbackFn post_advance_hierarchy_feedback_;
+  std::function<void(::amrex::FArrayBox&, ::amrex::FArrayBox&,
+                     ::amrex::FArrayBox&, const ::amrex::FArrayBox&,
+                     const ::amrex::FArrayBox&, const ::amrex::IntVect&,
+                     const Eigen::Matrix<double, AMREX_SPACEDIM, 1>&)>
+      compute_eb_reference_state_;
 };
 
 template <typename TubeEquation, typename PlenumEquation>
@@ -194,6 +230,38 @@ MultiBlockIntegratorContext2::MultiBlockIntegratorContext2(
   gridding_ = std::make_shared<MultiBlockGriddingAlgorithm2>(
       tube_equation, plenum_equation, std::move(tube_grids),
       std::move(plenum_grids), std::move(connectivity));
+  Conservative<TubeEquation> cons(tube_equation);
+  Complete<TubeEquation> mirror_state(tube_equation);
+  Complete<TubeEquation> ghost_state(tube_equation);
+  Complete<TubeEquation> tube_rp_solution(tube_equation);
+  Complete<PlenumEquation> plenum_rp_solution(plenum_equation);
+  Complete<PlenumEquation> reference_state(plenum_equation);
+  Hll<TubeEquation, EinfeldtSignalVelocities<TubeEquation>> hlle(tube_equation);
+  compute_eb_reference_state_ =
+      [=, peq = plenum_equation, teq = tube_equation](
+          ::amrex::FArrayBox& refs, ::amrex::FArrayBox& refs_mirror,
+          ::amrex::FArrayBox&, const ::amrex::FArrayBox& mirror,
+          const ::amrex::FArrayBox& ghost, const ::amrex::IntVect& i,
+          const Eigen::Matrix<double, AMREX_SPACEDIM, 1>& normal) mutable {
+        auto mirrorv = MakeView<const Conservative<TubeEquation>>(mirror, teq);
+        auto ghostv = MakeView<const Complete<TubeEquation>>(ghost, teq);
+        auto refv = MakeView<Complete<PlenumEquation>>(refs, peq);
+        auto ref_mirrorv = MakeView<Complete<PlenumEquation>>(refs_mirror, peq);
+        Load(cons, mirrorv, Shift(Box<0>(mirrorv).upper, Direction::X, -1));
+        fub::CompleteFromCons(teq, mirror_state, cons);
+        Load(ghost_state, ghostv, Box<0>(ghostv).lower);
+        hlle.SolveRiemannProblem(tube_rp_solution, mirror_state, ghost_state,
+                                 Direction::X);
+        EmbedState(peq, plenum_rp_solution, teq, AsCons(tube_rp_solution));
+        auto unit = UnitVector<PlenumEquation::Rank()>(Direction::X);
+        Rotate(reference_state, plenum_rp_solution, MakeRotation(unit, normal),
+               peq);
+        Index<AMREX_SPACEDIM> idx{};
+        std::copy_n(&i[0], AMREX_SPACEDIM, &idx[0]);
+        Store(refv, reference_state, idx);
+        EmbedState(peq, reference_state, teq, cons);
+        Store(ref_mirrorv, reference_state, idx);
+      };
 }
 
 } // namespace fub::amrex

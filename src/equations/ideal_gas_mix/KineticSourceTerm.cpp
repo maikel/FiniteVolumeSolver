@@ -28,6 +28,12 @@ template <int Rank>
 KineticSourceTerm<Rank>::KineticSourceTerm(const IdealGasMix<Rank>& eq)
     : equation_{eq}, state_{Complete<IdealGasMix<Rank>>(eq)} {}
 
+template <int Rank>
+Duration
+KineticSourceTerm<Rank>::ComputeStableDt(const amrex::IntegratorContext&, int) {
+  return Duration(std::numeric_limits<double>::max());
+}
+
 template <int Rank> Duration KineticSourceTerm<Rank>::ComputeStableDt(int) {
   return Duration(std::numeric_limits<double>::max());
 }
@@ -36,7 +42,7 @@ template <int Rank>
 Result<void, TimeStepTooLarge>
 KineticSourceTerm<Rank>::AdvanceLevel(amrex::IntegratorContext& simulation_data,
                                       int level, Duration dt,
-                                      const ::amrex::IntVect& ngrow) {
+                                      const ::amrex::IntVect&) {
   Timer advance_timer = simulation_data.GetCounterRegistry()->get_timer(
       "KineticSourceTerm::AdvanceLevel");
   ::amrex::MultiFab& data = simulation_data.GetScratch(level);
@@ -45,8 +51,8 @@ KineticSourceTerm<Rank>::AdvanceLevel(amrex::IntegratorContext& simulation_data,
 #endif
   for (::amrex::MFIter mfi(data, ::amrex::IntVect(8)); mfi.isValid(); ++mfi) {
     using Complete = ::fub::Complete<IdealGasMix<Rank>>;
-    View<Complete> states = amrex::MakeView<Complete>(data[mfi], *equation_,
-                                                      mfi.growntilebox(ngrow));
+    View<Complete> states =
+        amrex::MakeView<Complete>(data[mfi], *equation_, mfi.growntilebox());
     FlameMasterReactor& reactor = equation_->GetReactor();
     ForEachIndex(Box<0>(states), [&](auto... is) {
       std::array<std::ptrdiff_t, sRank> index{is...};
@@ -61,6 +67,9 @@ KineticSourceTerm<Rank>::AdvanceLevel(amrex::IntegratorContext& simulation_data,
       equation_->CompleteFromReactor(*state_, velocity);
       Store(states, *state_, index);
     });
+  }
+  for (Direction dir : {Direction::X, Direction::Y, Direction::Z}) {
+    simulation_data.ApplyBoundaryCondition(level, dir);
   }
   return boost::outcome_v2::success();
 }

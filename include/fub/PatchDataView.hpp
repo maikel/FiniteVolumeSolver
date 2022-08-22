@@ -28,6 +28,7 @@
 #include <functional>
 #include <tuple>
 #include <utility>
+#include <type_traits>
 
 namespace fub {
 template <int Rank>
@@ -51,6 +52,16 @@ template <std::size_t N>
 std::array<std::ptrdiff_t, N> RightTo(const std::array<std::ptrdiff_t, N>& idx,
                                       Direction dir, std::ptrdiff_t shift = 1) {
   return Shift(idx, dir, shift - 1);
+}
+
+template <std::size_t N>
+Index<static_cast<int>(N) + 1>
+EmbedIndex(const std::array<std::ptrdiff_t, N>& index, Direction dir) {
+  return std::apply(
+      [dir](auto... is) {
+        return Index<N + 1>{is..., static_cast<int>(dir)};
+      },
+      index);
 }
 
 template <int Rank> struct IndexBox {
@@ -159,6 +170,17 @@ AsArray(Extents e) noexcept {
   return array;
 }
 
+template <int Rank>
+IndexBox<Rank> Neighborhood(const Index<Rank>& i, int width) {
+  Index<Rank> lower = i;
+  Index<Rank> upper = i;
+  for (int i = 0; i < Rank; ++i) {
+    lower[i] -= width;
+    upper[i] += width + 1;
+  }
+  return {lower, upper};
+}
+
 template <typename T, int Rank, typename Layout = layout_left>
 struct PatchDataView;
 
@@ -215,8 +237,8 @@ struct PatchDataView : public PatchDataViewBase<T, R, Layout> {
     return this->mdspan_.extents();
   }
 
-  typename Layout::template mapping<dynamic_extents<sRank>>
-  Mapping() const noexcept {
+  typename Layout::template mapping<dynamic_extents<sRank>> Mapping() const
+      noexcept {
     return this->mdspan_.mapping();
   }
 
@@ -289,6 +311,17 @@ struct PatchDataView : public PatchDataViewBase<T, R, Layout> {
                    local_index.begin(),
                    [](IndexType i, IndexType o) { return i - o; });
     return this->mdspan_(local_index);
+  }
+
+  template <typename IndexType,
+            typename = std::enable_if_t<
+                std::is_convertible_v<IndexType, std::ptrdiff_t>>>
+  auto& operator()(const std::array<IndexType, sRank - 1>& indices,
+                   int ncomp) const {
+    std::array<IndexType, sRank> indices2;
+    std::copy_n(indices.begin(), sRank - 1, indices2.begin());
+    indices2[sRank - 1] = ncomp;
+    return this->operator()(indices2);
   }
 };
 

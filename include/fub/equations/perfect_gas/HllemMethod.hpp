@@ -39,7 +39,7 @@ template <typename EulerEquation, bool Larrouturou = true> struct Hllem {
 
   static constexpr int GetStencilWidth() noexcept { return 1; }
 
-  void ComputeNumericFlux(Conservative& flux, span<const Complete, 2> stencil,
+  double ComputeNumericFlux(Conservative& flux, span<const Complete, 2> stencil,
                           Duration dt, double dx, Direction dir);
 
   void ComputeNumericFlux(ConservativeArray& flux, Array1d face_fractions,
@@ -47,7 +47,7 @@ template <typename EulerEquation, bool Larrouturou = true> struct Hllem {
                           span<const Array1d, 2> volume_fractions, Duration dt,
                           double dx, Direction dir);
 
-  void ComputeNumericFlux(ConservativeArray& flux,
+  Array1d ComputeNumericFlux(ConservativeArray& flux,
                           span<const CompleteArray, 2> stencil, Duration dt,
                           double dx, Direction dir);
 

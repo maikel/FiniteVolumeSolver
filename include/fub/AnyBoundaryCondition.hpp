@@ -27,13 +27,15 @@
 #include "fub/Meta.hpp"
 
 #include <memory>
+#include <typeinfo>
+#include <type_traits>
 
 namespace fub {
 
 /// \ingroup GriddingAlgorithm
 /// \defgroup BoundaryCondition Boundary Conditions
-/// \brief This modules collects all components that fill the ghost layer of a patch
-/// level.
+/// \brief This modules collects all components that fill the ghost layer of a
+/// patch level.
 
 namespace detail {
 template <typename GriddingAlgorithm> struct BoundaryConditionBase {
@@ -41,10 +43,14 @@ template <typename GriddingAlgorithm> struct BoundaryConditionBase {
 
   virtual ~BoundaryConditionBase() = default;
   virtual std::unique_ptr<BoundaryConditionBase> Clone() const = 0;
+  virtual void PreAdvanceHierarchy(const GriddingAlgorithm& grid) = 0;
   virtual void FillBoundary(DataReference mf, const GriddingAlgorithm& gridding,
                             int level) = 0;
   virtual void FillBoundary(DataReference mf, const GriddingAlgorithm& gridding,
                             int level, Direction dir) = 0;
+
+  virtual const std::type_info& GetTypeInfo() const noexcept = 0;
+  virtual void* GetPointer() noexcept = 0;
 };
 } // namespace detail
 
@@ -87,6 +93,12 @@ public:
   /// @{
   /// \name Actions
 
+  /// \brief Perform some action on each time step if neccessary.
+  ///
+  /// This will do nothing if the boundary condition does not require to do
+  /// anything.
+  void PreAdvanceHierarchy(const GriddingAlgorithm& grid);
+
   /// \brief Fill the boundary layer of data.
   void FillBoundary(DataReference data, const GriddingAlgorithm& gridding,
                     int level);
@@ -95,6 +107,31 @@ public:
   void FillBoundary(DataReference data, const GriddingAlgorithm& gridding,
                     int level, Direction dir);
   /// @}
+
+  /// \brief Try to cast this boundary condition to type BC.
+  ///
+  /// If the stored boundary condition is not of type BC then a nullptr is returned.
+  template <typename BC>
+  BC* Cast() noexcept {
+    if (boundary_condition_) {
+      const std::type_info& this_bc_type = boundary_condition_->GetTypeInfo();
+      if (this_bc_type == typeid(BC)) {
+        return static_cast<BC*>(boundary_condition_->GetPointer());
+      }
+    }
+    return nullptr;
+  }
+
+  template <typename BC, typename = std::enable_if_t<std::is_const_v<BC>>>
+  BC* Cast() const noexcept {
+    if (boundary_condition_) {
+      const std::type_info& this_bc_type = boundary_condition_->GetTypeInfo();
+      if (this_bc_type == typeid(BC)) {
+        return static_cast<BC*>(boundary_condition_->GetPointer());
+      }
+    }
+    return nullptr;
+  }
 
 private:
   std::unique_ptr<detail::BoundaryConditionBase<GriddingAlgorithm>>
@@ -121,6 +158,13 @@ struct BoundaryConditionWrapper
         boundary_condition_);
   }
 
+  void PreAdvanceHierarchy(const GriddingAlgorithm& grid) {
+    if constexpr (is_detected<meta::PreAdvanceHierarchy, BC&,
+                              const GriddingAlgorithm&>::value) {
+      boundary_condition_.PreAdvanceHierarchy(grid);
+    }
+  }
+
   void FillBoundary(DataReference data, const GriddingAlgorithm& gridding,
                     int level) override {
     boundary_condition_.FillBoundary(data, gridding, level);
@@ -129,6 +173,14 @@ struct BoundaryConditionWrapper
   void FillBoundary(DataReference data, const GriddingAlgorithm& gridding,
                     int level, Direction dir) override {
     boundary_condition_.FillBoundary(data, gridding, level, dir);
+  }
+
+  const std::type_info& GetTypeInfo() const noexcept override {
+    return typeid(BC);
+  }
+
+  void* GetPointer() noexcept override {
+    return std::addressof(boundary_condition_);
   }
 
   BC boundary_condition_;
@@ -144,8 +196,8 @@ AnyBoundaryCondition<GriddingAlgorithm>::AnyBoundaryCondition(
 
 template <typename GriddingAlgorithm>
 AnyBoundaryCondition<GriddingAlgorithm>&
-AnyBoundaryCondition<GriddingAlgorithm>::operator=(
-    const AnyBoundaryCondition& other) {
+AnyBoundaryCondition<GriddingAlgorithm>::
+operator=(const AnyBoundaryCondition& other) {
   AnyBoundaryCondition tmp(other);
   return *this = std::move(tmp);
 }
@@ -155,6 +207,14 @@ template <typename BC, typename>
 AnyBoundaryCondition<GriddingAlgorithm>::AnyBoundaryCondition(BC&& bc)
     : boundary_condition_{std::make_unique<detail::BoundaryConditionWrapper<
           GriddingAlgorithm, std::decay_t<BC>>>(std::forward<BC>(bc))} {}
+
+template <typename GriddingAlgorithm>
+void AnyBoundaryCondition<GriddingAlgorithm>::PreAdvanceHierarchy(
+    const GriddingAlgorithm& grid) {
+  if (boundary_condition_) {
+    boundary_condition_->PreAdvanceHierarchy(grid);
+  }
+}
 
 template <typename GriddingAlgorithm>
 void AnyBoundaryCondition<GriddingAlgorithm>::FillBoundary(

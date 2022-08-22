@@ -381,6 +381,19 @@ void Reflect(Conservative<PerfectGas<3>>& reflected,
              const Conservative<PerfectGas<3>>& state,
              const Eigen::Vector3d& normal, const PerfectGas<3>& gas);
 
+void Reflect(Primitive<PerfectGas<1>>& reflected,
+             const Primitive<PerfectGas<1>>& state,
+             const Eigen::Matrix<double, 1, 1>& normal,
+             const PerfectGas<1>& gas);
+
+void Reflect(Primitive<PerfectGas<2>>& reflected,
+             const Primitive<PerfectGas<2>>& state,
+             const Eigen::Vector2d& normal, const PerfectGas<2>& gas);
+
+void Reflect(Primitive<PerfectGas<3>>& reflected,
+             const Primitive<PerfectGas<3>>& state,
+             const Eigen::Vector3d& normal, const PerfectGas<3>& gas);
+
 void Reflect(Complete<PerfectGas<1>>& reflected,
              const Complete<PerfectGas<1>>& state,
              const Eigen::Matrix<double, 1, 1>& normal,

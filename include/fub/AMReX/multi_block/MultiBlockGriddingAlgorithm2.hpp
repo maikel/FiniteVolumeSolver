@@ -21,6 +21,8 @@
 #ifndef FUB_AMREX_COUPLED_GRIDDING_ALGORITHM2_HPP
 #define FUB_AMREX_COUPLED_GRIDDING_ALGORITHM2_HPP
 
+#include "fub/AMReX/boundary_condition/BoundarySet.hpp"
+#include "fub/AMReX/cutcell/boundary_condition/BoundarySet.hpp"
 #include "fub/AMReX/multi_block/MultiBlockBoundary2.hpp"
 
 #include "fub/AMReX/GriddingAlgorithm.hpp"
@@ -29,6 +31,8 @@
 #include "fub/output/CounterOutput.hpp"
 
 #include "fub/core/span.hpp"
+#include <range/v3/view/enumerate.hpp>
+#include <range/v3/view/zip.hpp>
 
 namespace fub {
 namespace amrex {
@@ -57,16 +61,12 @@ public:
 
   Duration GetTimePoint() const noexcept { return plena_[0]->GetTimePoint(); }
 
-  [[nodiscard]] span<const std::shared_ptr<GriddingAlgorithm>>
-  GetTubes() const noexcept;
+  [[nodiscard]] span<const std::shared_ptr<GriddingAlgorithm>> GetTubes() const
+      noexcept;
   [[nodiscard]] span<const std::shared_ptr<cutcell::GriddingAlgorithm>>
   GetPlena() const noexcept;
 
   [[nodiscard]] span<const BlockConnection> GetConnectivity() const noexcept;
-  [[nodiscard]] span<AnyMultiBlockBoundary>
-  GetBoundaries(int level = 0) noexcept {
-    return boundaries_[static_cast<std::size_t>(level)];
-  }
 
   void RegridAllFinerLevels(int which_level);
 
@@ -74,7 +74,6 @@ private:
   std::vector<std::shared_ptr<GriddingAlgorithm>> tubes_;
   std::vector<std::shared_ptr<cutcell::GriddingAlgorithm>> plena_;
   std::vector<BlockConnection> connectivity_;
-  std::vector<std::vector<AnyMultiBlockBoundary>> boundaries_;
 };
 
 template <typename TubeEquation, typename PlenumEquation>
@@ -86,15 +85,43 @@ MultiBlockGriddingAlgorithm2::MultiBlockGriddingAlgorithm2(
     : tubes_{std::move(tubes)}, plena_{std::move(plena)},
       connectivity_(std::move(connectivity)) {
   const int nlevel = plena_[0]->GetPatchHierarchy().GetMaxNumberOfLevels();
-  boundaries_.resize(static_cast<std::size_t>(nlevel));
-  int level = 0;
-  for (auto& boundaries : boundaries_) {
+  std::vector<std::vector<AnyMultiBlockBoundary>> all_multi_block_boundaries;
+  all_multi_block_boundaries.resize(static_cast<std::size_t>(nlevel));
+  // We create a list of (connectivity, multi block boundary) pairs on each
+  // refinement level.
+  for (auto&& [level, boundaries] :
+       ranges::view::enumerate(all_multi_block_boundaries)) {
     for (const BlockConnection& conn : connectivity_) {
       boundaries.emplace_back(
           MultiBlockBoundary2(tube_equation, plenum_equation), *this, conn,
           conn.ghost_cell_width, level);
     }
-    level += 1;
+  }
+  // Add multi block boundaries to the boundary conditions of tubes
+  for (auto&& [tube_id, tube] : ranges::view::enumerate(tubes_)) {
+    amrex::BoundarySet boundary;
+    boundary.conditions.push_back(tube->GetBoundaryCondition());
+    for (auto& boundaries : all_multi_block_boundaries) {
+      for (auto&& [conn, bc] : ranges::view::zip(connectivity_, boundaries)) {
+        if (conn.tube.id == tube_id) {
+          boundary.conditions.emplace_back(bc);
+        }
+      }
+    }
+    tube->GetBoundaryCondition() = boundary;
+  }
+  // Add multi block boundaries to the boundary conditions of tubes
+  for (auto&& [plenum_id, plenum] : ranges::view::enumerate(plena_)) {
+    amrex::cutcell::BoundarySet boundary;
+    boundary.conditions.push_back(plenum->GetBoundaryCondition());
+    for (auto& boundaries : all_multi_block_boundaries) {
+      for (auto&& [conn, bc] : ranges::view::zip(connectivity_, boundaries)) {
+        if (conn.plenum.id == plenum_id) {
+          boundary.conditions.emplace_back(bc);
+        }
+      }
+    }
+    plenum->GetBoundaryCondition() = boundary;
   }
 }
 
@@ -130,7 +157,11 @@ public:
                                                 .GetCounterRegistry()
                                                 ->gather_statistics();
     if (statistics.size()) {
-      print_statistics<PrintDuration>(statistics, diff.count());
+      SeverityLogger log = GetInfoLogger();
+      BOOST_LOG_SCOPED_LOGGER_TAG(log, "Channel", "CounterOutput");
+      BOOST_LOG_SCOPED_LOGGER_TAG(log, "Time", grid.GetTimePoint().count());
+      BOOST_LOG(log) << print_statistics<PrintDuration>(statistics,
+                                                        diff.count());
     }
   }
 

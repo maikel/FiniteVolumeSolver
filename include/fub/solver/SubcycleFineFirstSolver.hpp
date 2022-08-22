@@ -75,11 +75,8 @@ public:
   ///
   /// This method subcycles finer levels.
   ///
-  /// \param[in] level_num  An integer denoting the patch level where 0 is the
-  /// coarsest level.
-  ///
-  /// \param[in] direction The dimensional split direction which will be used to
-  /// advance.
+  /// \param[in] level_number  An integer denoting the patch level where 0 is
+  /// the coarsest level.
   ///
   /// \param[in] dt A stable time step size for the level_num-th patch level.
   Result<void, TimeStepTooLarge> AdvanceLevel(int level_number, Duration dt,
@@ -105,7 +102,7 @@ Duration SubcycleFineFirstSolver<LevelIntegrator>::ComputeStableDt() {
   Duration min_dt(std::numeric_limits<double>::max());
   for (int level_num = 0; Base::LevelExists(level_num); ++level_num) {
     int ratio = GetTotalRefineRatio(level_num);
-    min_dt = std::min(min_dt, ratio * Base::ComputeStableDt(level_num));
+    min_dt = std::min<Duration>(min_dt, ratio * Base::ComputeStableDt(level_num));
   }
   MPI_Comm comm = Base::GetMpiCommunicator();
   const double local_dt = min_dt.count();
@@ -180,7 +177,19 @@ SubcycleFineFirstSolver<LevelIntegrator>::AdvanceLevel(
 template <typename LevelIntegrator>
 Result<void, TimeStepTooLarge>
 SubcycleFineFirstSolver<LevelIntegrator>::AdvanceHierarchy(Duration dt) {
-  return AdvanceLevel(0, dt, {0, 1});
+  Result<void, TimeStepTooLarge> result = AdvanceLevel(0, dt, {0, 1});
+  const int num_step = Base::GetCycles();
+  int fill_boundary_frequency =
+      Base::GetContext().GetOptions().regrid_frequency;
+  if (result && num_step % fill_boundary_frequency == 0) {
+    Base::GetContext().FillGhostLayerSingleLevel(0);
+    int this_level = 1;
+    while (Base::GetContext().LevelExists(this_level)) {
+      Base::GetContext().FillGhostLayerTwoLevels(this_level, this_level - 1);
+      ++this_level;
+    }
+  }
+  return result;
 }
 
 } // namespace fub

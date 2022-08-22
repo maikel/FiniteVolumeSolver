@@ -19,14 +19,16 @@
 // SOFTWARE.
 
 #include "fub/AMReX/multi_block/MultiBlockGriddingAlgorithm2.hpp"
+#include <range/v3/view/enumerate.hpp>
+#include <range/v3/view/filter.hpp>
+#include <range/v3/view/zip.hpp>
 
 namespace fub::amrex {
 
 MultiBlockGriddingAlgorithm2::MultiBlockGriddingAlgorithm2(
     const MultiBlockGriddingAlgorithm2& other)
-    : tubes_(other.tubes_.size()),
-      plena_(other.plena_.size()), connectivity_(other.connectivity_),
-      boundaries_(other.boundaries_) {
+    : tubes_(other.tubes_.size()), plena_(other.plena_.size()),
+      connectivity_(other.connectivity_) {
   for (std::size_t i = 0; i < tubes_.size(); ++i) {
     tubes_[i] = std::make_shared<GriddingAlgorithm>(*other.tubes_[i]);
   }
@@ -52,8 +54,8 @@ MultiBlockGriddingAlgorithm2::GetPlena() const noexcept {
   return plena_;
 }
 
-span<const BlockConnection> MultiBlockGriddingAlgorithm2::GetConnectivity() const
-    noexcept {
+span<const BlockConnection>
+MultiBlockGriddingAlgorithm2::GetConnectivity() const noexcept {
   return connectivity_;
 }
 

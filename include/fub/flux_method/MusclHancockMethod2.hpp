@@ -33,10 +33,13 @@
 
 namespace fub {
 template <
-    typename Equation, typename GradientMethod = ConservativeGradient<Equation>,
-    typename ReconstructionMethod = ConservativeReconstruction<Equation>,
+    typename Equation, typename GradientMethodT = ConservativeGradient<Equation>,
+    typename ReconstructionMethodT = ConservativeReconstruction<Equation>,
     typename BaseMethod = GodunovMethod<Equation, ExactRiemannSolver<Equation>>>
 struct MusclHancock2 {
+  using GradientMethod = GradientMethodT;
+  using ReconstructionMethod = ReconstructionMethodT;
+
   using Complete = typename Equation::Complete;
   using Conservative = typename Equation::Conservative;
   using Gradient = typename GradientMethod::Gradient;
@@ -80,14 +83,14 @@ struct MusclHancock2 {
                           span<const Gradient, 2> gradients, Duration dt,
                           double dx, Direction dir);
 
-  void ComputeNumericFlux(ConservativeArray& flux,
-                          span<const CompleteArray, 4> stencil, Duration dt,
-                          double dx, Direction dir);
+  decltype(auto) ComputeNumericFlux(ConservativeArray& flux,
+                     span<const CompleteArray, 4> stencil, Duration dt,
+                     double dx, Direction dir);
 
-  void ComputeNumericFlux(ConservativeArray& flux,
-                          span<const CompleteArray, 2> stencil,
-                          span<const GradientArray, 2> gradients, Duration dt,
-                          double dx, Direction dir);
+  decltype(auto) ComputeNumericFlux(ConservativeArray& flux,
+                     span<const CompleteArray, 2> stencil,
+                     span<const GradientArray, 2> gradients, Duration dt,
+                     double dx, Direction dir);
 
   void ComputeNumericFlux(ConservativeArray& flux, Array1d face_fractions,
                           span<const CompleteArray, 4> stencil,
@@ -104,6 +107,12 @@ struct MusclHancock2 {
   Equation& GetEquation() noexcept { return equation_; }
 
   const BaseMethod& GetBaseMethod() const noexcept { return flux_method_; }
+
+  const GradientMethod& GetGradientMethod() const noexcept { return gradient_method_; }
+  GradientMethod& GetGradientMethod() noexcept { return gradient_method_; }
+
+  const ReconstructionMethod& GetReconstruction() const noexcept { return reconstruction_method_; }
+  ReconstructionMethod& GetReconstruction() noexcept { return reconstruction_method_; }
 
 private:
   // These member variables control the behaviour of this method
@@ -150,7 +159,8 @@ void MusclHancock2<Equation, GradientMethod, ReconstructionMethod, BaseMethod>::
 
 template <typename Equation, typename GradientMethod,
           typename ReconstructionMethod, typename BaseMethod>
-void MusclHancock2<Equation, GradientMethod, ReconstructionMethod, BaseMethod>::
+decltype(auto)
+MusclHancock2<Equation, GradientMethod, ReconstructionMethod, BaseMethod>::
     ComputeNumericFlux(ConservativeArray& flux,
                        span<const CompleteArray, 4> stencil, Duration dt,
                        double dx, Direction dir) {
@@ -158,13 +168,14 @@ void MusclHancock2<Equation, GradientMethod, ReconstructionMethod, BaseMethod>::
                                    stencil.template subspan<0, 3>(), dx, dir);
   gradient_method_.ComputeGradient(gradient_array_[1],
                                    stencil.template subspan<1, 3>(), dx, dir);
-  ComputeNumericFlux(flux, stencil.template subspan<1, 2>(), gradient_array_,
+  return ComputeNumericFlux(flux, stencil.template subspan<1, 2>(), gradient_array_,
                      dt, dx, dir);
 }
 
 template <typename Equation, typename GradientMethod,
           typename ReconstructionMethod, typename BaseMethod>
-void MusclHancock2<Equation, GradientMethod, ReconstructionMethod, BaseMethod>::
+decltype(auto)
+MusclHancock2<Equation, GradientMethod, ReconstructionMethod, BaseMethod>::
     ComputeNumericFlux(ConservativeArray& flux,
                        span<const CompleteArray, 2> stencil,
                        span<const GradientArray, 2> gradients, Duration dt,
@@ -173,7 +184,7 @@ void MusclHancock2<Equation, GradientMethod, ReconstructionMethod, BaseMethod>::
                                      gradients[0], dt, dx, dir, Side::Upper);
   reconstruction_method_.Reconstruct(reconstruction_array_[1], stencil[1],
                                      gradients[1], dt, dx, dir, Side::Lower);
-  flux_method_.ComputeNumericFlux(flux, reconstruction_array_, dt, dx, dir);
+  return flux_method_.ComputeNumericFlux(flux, reconstruction_array_, dt, dx, dir);
 }
 
 template <typename Equation, typename GradientMethod,
@@ -218,7 +229,12 @@ void MusclHancock2<Equation, GradientMethod, ReconstructionMethod, BaseMethod>::
                                      gradients[1], dt, dx, dir, Side::Lower);
   flux_method_.ComputeNumericFlux(flux, face_fractions, reconstruction_array_,
                                   volume_fractions, dt, dx, dir);
-  ForEachVariable([]([[maybe_unused]] auto&& f) { FUB_ASSERT(!f.isNaN().any()); }, flux);
+  
+  // MaskArray mask = (face_fractions > 0);
+  // ForEachComponent(
+  //     [&](auto&& f) { 
+  //       f = mask.select(f, 0);
+  //       FUB_ASSERT(!f.isNaN().any()); }, flux);
 }
 
 } // namespace fub

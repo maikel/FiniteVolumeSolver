@@ -31,28 +31,39 @@
 namespace fub::amrex {
 
 IgniteDetonationOptions::IgniteDetonationOptions(
-    const std::map<std::string, pybind11::object>& opts, const std::string& p)
-    : prefix{p} {
-  measurement_position =
-      GetOptionOr(opts, "measurement_position", measurement_position);
-  equivalence_ratio_criterium = GetOptionOr(opts, "equivalence_ratio_criterium",
-                                            equivalence_ratio_criterium);
-  ignite_position = GetOptionOr(opts, "position", ignite_position);
-  offset = Duration(GetOptionOr(opts, "offset", offset.count()));
-  ignite_interval =
-      Duration(GetOptionOr(opts, "interval", ignite_interval.count()));
+    const ProgramOptions& options) {
+  FUB_GET_OPTION_VAR(options, channel);
+  FUB_GET_OPTION_VAR(options, measurement_position);
+  FUB_GET_OPTION_VAR(options, equivalence_ratio_criterium);
+  FUB_GET_OPTION_VAR(options, ignite_position);
+  FUB_GET_OPTION_VAR(options, offset);
+  FUB_GET_OPTION_VAR(options, ignite_interval);
+  FUB_GET_OPTION_VAR(options, temperature_low);
+  FUB_GET_OPTION_VAR(options, temperature_high);
+  FUB_GET_OPTION_VAR(options, ramp_width);
+}
+
+void IgniteDetonationOptions::Print(SeverityLogger& log) const {
+  FUB_PRINT_OPTION_VAR(log, channel);
+  FUB_PRINT_OPTION_VAR(log, measurement_position);
+  FUB_PRINT_OPTION_VAR(log, equivalence_ratio_criterium);
+  FUB_PRINT_OPTION_VAR(log, ignite_position);
+  FUB_PRINT_OPTION_VAR(log, offset);
+  FUB_PRINT_OPTION_VAR(log, ignite_interval);
+  FUB_PRINT_OPTION_VAR(log, temperature_low);
+  FUB_PRINT_OPTION_VAR(log, temperature_high);
+  FUB_PRINT_OPTION_VAR(log, ramp_width);
 }
 
 IgniteDetonation::IgniteDetonation(
     const fub::IdealGasMix<1>& eq, int max_number_levels,
     const fub::amrex::IgniteDetonationOptions& opts)
     : equation_(eq), options_{opts},
-      next_ignition_time_backup_(static_cast<std::size_t>(max_number_levels),
-                                 opts.offset),
-      next_ignition_time_(static_cast<std::size_t>(max_number_levels),
-                          opts.offset) {}
+      last_ignition_time_(static_cast<std::size_t>(max_number_levels),
+                          Duration(std::numeric_limits<double>::min())) {}
 
-Duration IgniteDetonation::ComputeStableDt(int) const noexcept {
+Duration IgniteDetonation::ComputeStableDt(const IntegratorContext&, int) const
+    noexcept {
   return Duration(std::numeric_limits<double>::max());
 }
 
@@ -109,21 +120,19 @@ std::vector<double> GatherMoles_(const IntegratorContext& grid, double x,
 
 Duration IgniteDetonation::GetNextIgnitionTimePoint(int level) const noexcept {
   const std::size_t l = static_cast<std::size_t>(level);
-  return next_ignition_time_[l];
-}
-
-void IgniteDetonation::SetNextIgnitionTimePoint(int level,
-                                                Duration t) noexcept {
-  const std::size_t l = static_cast<std::size_t>(level);
-  next_ignition_time_backup_[l] = std::exchange(next_ignition_time_[l], t);
-}
-
-void IgniteDetonation::ResetHierarchyConfiguration(
-    std::shared_ptr<amrex::GriddingAlgorithm> grid) {
-  if (grid->GetPatchHierarchy().GetTimePoint() <= next_ignition_time_backup_[0]) {
-    next_ignition_time_ = next_ignition_time_backup_;
+  if (last_ignition_time_[l] < options_.offset) {
+    return options_.offset;
+  } else {
+    return last_ignition_time_[l] + options_.ignite_interval;
   }
 }
+
+void IgniteDetonation::SetLastIgnitionTimePoint(int level,
+                                                Duration t) noexcept {
+  const std::size_t l = static_cast<std::size_t>(level);
+  last_ignition_time_[l] = t;
+}
+
 Result<void, TimeStepTooLarge>
 IgniteDetonation::AdvanceLevel(IntegratorContext& grid, int level,
                                fub::Duration /* dt */,
@@ -135,7 +144,7 @@ IgniteDetonation::AdvanceLevel(IntegratorContext& grid, int level,
     const double dx_2 = geom.CellSize(0);
     const double xlo = geom.ProbDomain().lo(0) + dx_2;
     const double xhi = geom.ProbDomain().hi(0) - dx_2;
-    const double x_fuel = std::clamp(options_.ignite_position, xlo, xhi);
+    const double x_fuel = std::clamp(options_.measurement_position, xlo, xhi);
     std::vector<double> moles = GatherMoles_(grid, x_fuel, equation_);
     const double equivalence_ratio =
         moles[Burke2012::sO2]
@@ -144,7 +153,7 @@ IgniteDetonation::AdvanceLevel(IntegratorContext& grid, int level,
     if (equivalence_ratio > options_.equivalence_ratio_criterium) {
       ::amrex::MultiFab& data = grid.GetScratch(level);
       const ::amrex::Geometry& geom = grid.GetGeometry(level);
-      const double x_ignite = options_.ignite_position;
+      const double x_ignite = std::clamp(options_.ignite_position, xlo, xhi);
       const double T_lo = options_.temperature_low;
       const double T_hi = options_.temperature_high;
       const double width = options_.ramp_width;
@@ -155,7 +164,18 @@ IgniteDetonation::AdvanceLevel(IntegratorContext& grid, int level,
             MakeView<Complete<IdealGasMix<1>>>(fab, equation_, mfi.tilebox());
         ForEachIndex(Box<0>(view), [&](std::ptrdiff_t i) {
           const double x = geom.CellCenter(static_cast<int>(i), 0);
-          if (x_ignite - width <= x && x < x_ignite) {
+          if (x < x_ignite - width) {
+            Load(state, view, {i});
+            equation_.SetReactorStateFromComplete(state);
+            equation_.GetReactor().SetTemperature(2000.0);
+            equation_.GetReactor().Advance(1.0);
+            span<const double> moles = equation_.GetReactor().GetMoleFractions();
+            std::vector<double> burnt_moles(moles.begin(), moles.end());
+            equation_.SetReactorStateFromComplete(state);
+            equation_.GetReactor().SetMoleFractions(burnt_moles);
+            equation_.CompleteFromReactor(state);
+            Store(view, state, {i});
+          } else if (x_ignite - width <= x && x < x_ignite) {
             const double d = (x_ignite - x) / width;
             const double T = d * T_lo + (1.0 - d) * T_hi;
             Load(state, view, {i});
@@ -176,23 +196,23 @@ IgniteDetonation::AdvanceLevel(IntegratorContext& grid, int level,
           }
         });
       });
-      SetNextIgnitionTimePoint(level, next_ignition_time + options_.ignite_interval);
-      boost::log::sources::severity_logger<boost::log::trivial::severity_level>
-          log(boost::log::keywords::severity = boost::log::trivial::info);
+      SetLastIgnitionTimePoint(level, next_ignition_time);
+      fub::SeverityLogger log = GetInfoLogger();
+      BOOST_LOG_SCOPED_LOGGER_TAG(log, "Channel", options_.channel);
       BOOST_LOG_SCOPED_LOGGER_TAG(log, "Time", current_time.count());
       BOOST_LOG_SCOPED_LOGGER_TAG(log, "Level", level);
       BOOST_LOG(log) << "Detonation triggered at " << options_.ignite_position
                      << " [m], because equivalence ratio at " << x_fuel
                      << " [m] is " << equivalence_ratio << " [-]!";
     } else {
-      boost::log::sources::severity_logger<boost::log::trivial::severity_level>
-          log(boost::log::keywords::severity = boost::log::trivial::info);
-      BOOST_LOG_SCOPED_LOGGER_TAG(log, "Time", current_time.count());
-      BOOST_LOG_SCOPED_LOGGER_TAG(log, "Level", level);
-      BOOST_LOG(log) << "Detonation did not trigger at "
-                     << options_.ignite_position
-                     << " [m], because equivalence ratio at " << x_fuel
-                     << " [m] is " << equivalence_ratio << " [-]!";
+      fub::SeverityLogger debug = GetLogger(boost::log::trivial::debug);
+      BOOST_LOG_SCOPED_LOGGER_TAG(debug, "Channel", options_.channel);
+      BOOST_LOG_SCOPED_LOGGER_TAG(debug, "Time", current_time.count());
+      BOOST_LOG_SCOPED_LOGGER_TAG(debug, "Level", level);
+      BOOST_LOG(debug) << "Detonation did not trigger at "
+                       << options_.ignite_position
+                       << " [m], because equivalence ratio at " << x_fuel
+                       << " [m] is " << equivalence_ratio << " [-]!";
     }
   }
   return boost::outcome_v2::success();

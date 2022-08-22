@@ -24,31 +24,89 @@
 #include "fub/AMReX/multi_block/MultiBlockIntegratorContext.hpp"
 
 #include <functional>
+#include <optional>
 
 namespace fub::amrex {
 
-template <typename Adapter, typename LevelIntegrator>
+template<typename T>
+class assignable
+{
+public:
+    assignable& operator=(assignable const& other)
+    {
+        value_.emplace(*other.value_);
+        return *this;
+    }
+
+    assignable& operator=(assignable&& other) = default;
+    assignable(assignable&& other) = default;
+    assignable(assignable const& other) = default;
+    
+    assignable(T const& value) : value_(value) {}
+    assignable(T&& value) : value_(std::move(value)) {}
+    
+    T const& get() const { return value_; }
+    T& get() { return value_; }
+    
+    template<typename... Args>
+    decltype(auto) operator()(Args&&... args)
+    {
+        return (*value_)(std::forward<Args>(args)...);
+    }
+private:
+    std::optional<T> value_;
+};
+
+template<typename T>
+class assignable<T&>
+{
+public:
+    explicit assignable(T& value) : value_(value) {}
+    
+    T const& get() const { return value_; }
+    T& get() { return value_; }
+    
+    template<typename... Args>
+    decltype(auto) operator()(Args&&... args)
+    {
+        return value_(std::forward<Args>(args)...);
+    }
+private:
+    std::reference_wrapper<T> value_;
+};
+
+template <typename AdapterAdvanceLevel, typename AdapterComputeStableDt,
+          typename LevelIntegrator>
 class MultiBlockLevelIntegrator {
 private:
-  Adapter map_;
+  assignable<AdapterAdvanceLevel> advance_level_map_;
+  assignable<AdapterComputeStableDt> compute_stable_dt_map_;
   LevelIntegrator level_integrator_;
 
 public:
   static constexpr int Rank = LevelIntegrator::Rank;
 
-  MultiBlockLevelIntegrator(Adapter adapter, LevelIntegrator level_integrator)
-      : map_(std::move(adapter)),
+  MultiBlockLevelIntegrator(AdapterAdvanceLevel adapter1,
+                            AdapterComputeStableDt adapter2,
+                            LevelIntegrator level_integrator)
+      : advance_level_map_(std::move(adapter1)),
+        compute_stable_dt_map_(std::move(adapter2)),
         level_integrator_(std::move(level_integrator)) {}
 
-  Duration ComputeStableDt(int level) {
-    return level_integrator_.ComputeStableDt(level);
+  template <typename IntegratorContext>
+  [[nodiscard]] Duration ComputeStableDt(const IntegratorContext& context,
+                                         int level) {
+    return std::invoke(compute_stable_dt_map_, level_integrator_, context,
+                       level);
   }
 
   /// \brief Integrates the source term for each tube in the specified context
+  template <typename IntegratorContext>
   [[nodiscard]] Result<void, TimeStepTooLarge>
-  AdvanceLevel(MultiBlockIntegratorContext& context, int level, Duration dt,
+  AdvanceLevel(IntegratorContext& context, int level, Duration dt,
                const ::amrex::IntVect& ngrow = ::amrex::IntVect(0)) {
-    return std::invoke(map_, context, level_integrator_, level, dt, ngrow);
+    return std::invoke(advance_level_map_, level_integrator_, context, level,
+                       dt, ngrow);
   }
 };
 

@@ -21,6 +21,7 @@
 #ifndef FUB_AMREX_CUTCELL_INTEGRATOR_CONTEXT_HPP
 #define FUB_AMREX_CUTCELL_INTEGRATOR_CONTEXT_HPP
 
+#include "fub/AMReX/IntegratorContext.hpp"
 #include "fub/AMReX/cutcell/GriddingAlgorithm.hpp"
 #include "fub/HyperbolicMethod.hpp"
 #include "fub/TimeStepError.hpp"
@@ -45,13 +46,15 @@ using HyperbolicMethod = ::fub::HyperbolicMethod<IntegratorContext>;
 /// simulations with the AMReX library.
 class IntegratorContext {
 public:
-  using FeedbackFn = std::function<void(IntegratorContext&, int, Duration, std::pair<int, int>)>;
+  using FeedbackFn = std::function<void(IntegratorContext&, int, Duration,
+                                        std::pair<int, int>)>;
 
   /// @{
   /// \name Constructors, Assignment Operators and Desctructor
 
-  IntegratorContext(std::shared_ptr<GriddingAlgorithm> gridding,
-                    HyperbolicMethod method);
+  IntegratorContext(
+      std::shared_ptr<GriddingAlgorithm> gridding, HyperbolicMethod method,
+      const IntegratorContextOptions& options = IntegratorContextOptions());
 
   IntegratorContext(std::shared_ptr<GriddingAlgorithm> gridding,
                     HyperbolicMethod method, int cell_gcw, int face_gcw);
@@ -86,6 +89,9 @@ public:
   [[nodiscard]] const std::shared_ptr<CounterRegistry>&
   GetCounterRegistry() const noexcept;
 
+  /// \brief Returns the options
+  [[nodiscard]] const IntegratorContextOptions& GetOptions() const noexcept;
+
   /// \brief Returns a reference to const PatchHierarchy which is a member of
   /// the GriddingAlgorithm.
   [[nodiscard]] const PatchHierarchy& GetPatchHierarchy() const noexcept;
@@ -104,8 +110,7 @@ public:
   /// \name Access Level-specific data
 
   /// \brief Returns the current boundary condition for the specified level.
-  [[nodiscard]] const AnyBoundaryCondition&
-  GetBoundaryCondition() const;
+  [[nodiscard]] const AnyBoundaryCondition& GetBoundaryCondition() const;
   [[nodiscard]] AnyBoundaryCondition& GetBoundaryCondition();
 
   [[nodiscard]] ::amrex::EBFArrayBoxFactory& GetEmbeddedBoundary(int level);
@@ -119,14 +124,20 @@ public:
   /// \brief Returns the MultiFab associated with flux data on the specifed
   /// level number and direction.
   [[nodiscard]] ::amrex::MultiFab& GetReferenceStates(int level);
+  [[nodiscard]] ::amrex::MultiFab& GetReferenceGradients(int level, Direction dir);
+  [[nodiscard]] ::amrex::MultiFab& GetReferenceMirrorStates(int level);
+  [[nodiscard]] ::amrex::iMultiFab& GetReferenceMasks(int level);
 
   /// \brief Returns the MultiFab associated with level data with ghost cells on
   /// the specifed level number and direction.
   [[nodiscard]] ::amrex::MultiFab& GetScratch(int level);
+  [[nodiscard]] const ::amrex::MultiFab& GetScratch(int level) const;
 
   /// \brief Returns the MultiFab associated with flux data on the specifed
   /// level number and direction.
   [[nodiscard]] ::amrex::MultiCutFab& GetBoundaryFluxes(int level);
+  [[nodiscard]] ::amrex::MultiCutFab& GetBoundaryFluxes(int level, Direction dir);
+  [[nodiscard]] ::amrex::MultiCutFab& GetBoundaryMassflow(int level);
 
   /// \brief Returns the MultiFab associated with flux data on the specifed
   /// level number and direction.
@@ -217,6 +228,8 @@ public:
   void PreAdvanceHierarchy();
   void PostAdvanceHierarchy();
 
+  void PreSplitStep(int level, Duration dt, Direction dir, std::pair<int, int> subcycle);
+
   /// \brief On each first subcycle this will regrid the data if neccessary.
   int PreAdvanceLevel(int level_num, Duration dt, std::pair<int, int> subcycle);
 
@@ -233,6 +246,7 @@ public:
   ///
   /// \param level  The refinement level on which the boundary condition shall
   /// be used.
+  /// \param dir The dimensional split direction which will be used.
   void ApplyBoundaryCondition(int level, Direction dir);
   void ApplyBoundaryCondition(int level, Direction dir,
                               AnyBoundaryCondition& bc);
@@ -285,8 +299,8 @@ public:
 private:
   struct LevelData {
     LevelData() = default;
-    LevelData(const LevelData& other) = delete;
-    LevelData& operator=(const LevelData& other) = delete;
+    LevelData(const LevelData& other);
+    LevelData& operator=(const LevelData& other);
     LevelData(LevelData&&) noexcept = default;
     LevelData& operator=(LevelData&&) noexcept;
     ~LevelData() noexcept = default;
@@ -299,12 +313,16 @@ private:
 
     /// reference states which are used to compute embedded boundary fluxes
     std::optional<::amrex::MultiFab> reference_states{};
+    std::array<::amrex::MultiFab, AMREX_SPACEDIM> reference_gradients{};
+    std::optional<::amrex::MultiFab> reference_mirror_states{};
+    std::optional<::amrex::iMultiFab> reference_masks{};
 
     /// scratch space filled with data in ghost cells
     ::amrex::MultiFab scratch{};
 
     /// fluxes for the embedded boundary
-    std::unique_ptr<::amrex::MultiCutFab> boundary_fluxes{};
+    std::array<std::unique_ptr<::amrex::MultiCutFab>, AMREX_SPACEDIM> boundary_fluxes{};
+    std::unique_ptr<::amrex::MultiCutFab> boundary_massflow{};
 
     ///////////////////////////////////////////////////////////////////////////
     // [face-centered]
@@ -331,8 +349,7 @@ private:
     std::ptrdiff_t cycles{};
   };
 
-  int scratch_ghost_cell_width_;
-  int flux_ghost_cell_width_{scratch_ghost_cell_width_};
+  IntegratorContextOptions options_;
   std::shared_ptr<GriddingAlgorithm> gridding_;
   std::vector<LevelData> data_;
   HyperbolicMethod method_;

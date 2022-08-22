@@ -21,8 +21,9 @@
 #ifndef FUB_AMREX_MULTI_BLOCK_SOURCE_TERM_HPP
 #define FUB_AMREX_MULTI_BLOCK_SOURCE_TERM_HPP
 
-#include "fub/AMReX/multi_block/MultiBlockIntegratorContext.hpp"
+#include "fub/ext/outcome.hpp"
 
+#include <range/v3/view/zip.hpp>
 #include <vector>
 
 namespace fub::amrex {
@@ -39,20 +40,21 @@ public:
   explicit MultiBlockSourceTerm(std::vector<SourceTerm>&& src_terms)
       : source_terms_(std::move(src_terms)) {}
 
+  template <typename MultiBlockGrid, typename = std::enable_if_t<is_detected<meta::ResetHierarchyConfiguration, SourceTerm&, const std::shared_ptr<MultiBlockGrid>&>::value>>
   void ResetHierarchyConfiguration(
-      const std::shared_ptr<MultiBlockGriddingAlgorithm>& grid) {
+      const std::shared_ptr<MultiBlockGrid>& grid) {
     auto&& tubes = grid->GetTubes();
-    int i = 0;
-    for (auto&& tube : tubes) {
-      source_terms_[i].ResetHierarchyConfiguration(tube);
-      i = i + 1;
+    for (const auto& [tube, source] : ranges::view::zip(tubes, source_terms_)) {
+      source.ResetHierarchyConfiguration(*tube);
     }
   }
 
-  [[nodiscard]] Duration ComputeStableDt(int level) noexcept {
+  template <typename IntegratorContext>
+  [[nodiscard]] Duration ComputeStableDt(const IntegratorContext& ctx, int level) noexcept {
     Duration stable_dt(std::numeric_limits<double>::max());
-    for (SourceTerm& source : source_terms_) {
-      stable_dt = std::min(stable_dt, source.ComputeStableDt(level));
+    auto tubes = ctx.Tubes();
+    for (const auto& [tube, source] : ranges::view::zip(tubes, source_terms_)) {
+      stable_dt = std::min(stable_dt, source.ComputeStableDt(tube, level));
     }
     return stable_dt;
   }

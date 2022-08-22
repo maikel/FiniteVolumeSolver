@@ -30,7 +30,7 @@ namespace fub::amrex {
 AxiSymmetricSourceTerm::AxiSymmetricSourceTerm(const IdealGasMix<2>& eq)
     : equation_(eq) {}
 
-Duration AxiSymmetricSourceTerm::ComputeStableDt(int /* level */) {
+Duration AxiSymmetricSourceTerm::ComputeStableDt(const cutcell::IntegratorContext&, int /* level */) {
   return Duration(std::numeric_limits<double>::max());
 }
 

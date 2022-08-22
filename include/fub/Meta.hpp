@@ -47,6 +47,10 @@ template <typename Context, typename... Args>
 using PostAdvanceLevel =
     decltype(std::declval<Context>().PostAdvanceLevel(std::declval<Args>()...));
 
+template <typename Context, typename... Args>
+using ComputeStableDt =
+    decltype(std::declval<Context>().ComputeStableDt(std::declval<Args>()...));
+
 template <typename T, typename... Args>
 using ResetHierarchyConfiguration = decltype(
     std::declval<T>().ResetHierarchyConfiguration(std::declval<Args>()...));
@@ -73,10 +77,10 @@ struct GridTraits;
 /// a member function the function body will be empty.
 ///
 /// This functionality is used by generic algorithms in include/fub/solver/*
-template <typename T, typename Grid>
-void ResetHierarchyConfigurationIfDetected(T&& obj, Grid&& grid) {
-  if constexpr (is_detected<meta::ResetHierarchyConfiguration, T, Grid>()) {
-    std::forward<T>(obj).ResetHierarchyConfiguration(std::forward<Grid>(grid));
+template <typename T, typename... Grid>
+void ResetHierarchyConfigurationIfDetected(T&& obj, Grid&&... grid) {
+  if constexpr (is_detected<meta::ResetHierarchyConfiguration, T, Grid...>()) {
+    std::forward<T>(obj).ResetHierarchyConfiguration(std::forward<Grid>(grid)...);
   }
 }
 

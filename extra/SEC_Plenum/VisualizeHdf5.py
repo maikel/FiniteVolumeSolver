@@ -25,7 +25,7 @@ def Load(path, chunk=[]):
         data_array = np.array(file['data'][:, 0, :, :])
         time_array = np.array(file['times'])
     file.close()
-    return data_array #, time_array)
+    return data_array, time_array
 
 path = '/home/amrex/Divider_c24_800.h5'
 output_path = '/home/amrex/Figures/Hdf5'
@@ -36,8 +36,8 @@ rho_data = np.array(file['data'][:, 0, :, :])
 rhou_data = np.array(file['data'][:, 1, :, :])
 rhov_data = np.array(file['data'][:, 2, :, :])
 rhoE_data = np.array(file['data'][:, 3, :, :])
-p_data = np.array(file['data'][:, 4, :, :])
-c_data = np.array(file['data'][:, 5, :, :])
+p_data = np.array(file['data'][:, -3, :, :])
+c_data = np.array(file['data'][:, -2, :, :])
 alpha = np.array(file['data'][:, -1, :, :])
 times = np.array(file['times'])
 dx = file['data'].attrs['cell_size']

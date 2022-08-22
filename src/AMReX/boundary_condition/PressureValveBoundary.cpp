@@ -22,6 +22,8 @@
 #include "fub/AMReX/ForEachIndex.hpp"
 #include "fub/equations/ideal_gas_mix/mechanism/Burke2012.hpp"
 
+#include "fub/ext/ProgramOptions.hpp"
+
 #include <utility>
 
 #include <boost/log/common.hpp>
@@ -31,73 +33,34 @@
 namespace fub::amrex {
 
 void PressureValveOptions::Print(SeverityLogger& log) {
-  BOOST_LOG(log) << fmt::format("Pressure Valve '{}' Options:", prefix);
-  BOOST_LOG(log) << fmt::format(" - equivalence_ratio = {} [-]",
-                                equivalence_ratio);
-  BOOST_LOG(log) << fmt::format(" - outer_pressure = {} [Pa]", outer_pressure);
-  BOOST_LOG(log) << fmt::format(" - outer_temperature = {} [K]",
-                                outer_temperature);
-  BOOST_LOG(log) << fmt::format(
-      " - pressure_value_which_opens_boundary = {} [Pa]",
-      pressure_value_which_opens_boundary);
-  BOOST_LOG(log) << fmt::format(
-      " - pressure_value_which_closes_boundary = {} [Pa]",
-      pressure_value_which_closes_boundary);
-  BOOST_LOG(log) << fmt::format(" - oxygen_measurement_position = {} [m]",
-                                oxygen_measurement_position);
-  BOOST_LOG(log) << fmt::format(" - oxygen_measurement_criterium = {} [mole]",
-                                oxygen_measurement_criterium);
-  BOOST_LOG(log) << fmt::format(" - fuel_measurement_position = {} [m]",
-                                fuel_measurement_position);
-  BOOST_LOG(log) << fmt::format(" - fuel_measurement_criterium = {} [-]",
-                                fuel_measurement_criterium);
-  BOOST_LOG(log) << fmt::format(" - valve_efficiency = {} [-]",
-                                valve_efficiency);
-  BOOST_LOG(log) << fmt::format(" - open_at_interval = {} [s]",
-                                open_at_interval.count());
-  BOOST_LOG(log) << fmt::format(" - offset = {} [s]", offset.count());
+  BOOST_LOG(log) << fmt::format("Pressure Valve '{}' Options:", channel);
+  FUB_PRINT_OPTION_VAR(log, equivalence_ratio);
+  FUB_PRINT_OPTION_VAR(log, pressure_value_which_closes_boundary);
+  FUB_PRINT_OPTION_VAR(log, change_to_fuel_at_interval);
+  FUB_PRINT_OPTION_VAR(log, change_to_fuel_time_offset);
   BOOST_LOG(log) << fmt::format(" --- Massflow part:");
   massflow_boundary.Print(log);
 }
 
-PressureValveOptions::PressureValveOptions(const ProgramOptions& opts) {
-  prefix = GetOptionOr(opts, "prefix", prefix);
-  outer_pressure = GetOptionOr(opts, "outer_pressure", outer_pressure);
-  outer_temperature = GetOptionOr(opts, "outer_temperature", outer_temperature);
-  pressure_value_which_opens_boundary =
-      GetOptionOr(opts, "pressure_value_which_opens_boundary",
-                  pressure_value_which_opens_boundary);
-  pressure_value_which_closes_boundary =
-      GetOptionOr(opts, "pressure_value_which_closes_boundary",
-                  pressure_value_which_closes_boundary);
-  oxygen_measurement_position = GetOptionOr(opts, "oxygen_measurement_position",
-                                            oxygen_measurement_position);
-  oxygen_measurement_criterium = GetOptionOr(
-      opts, "oxygen_measurement_criterium", oxygen_measurement_criterium);
-  equivalence_ratio = GetOptionOr(opts, "equivalence_ratio", equivalence_ratio);
-  open_at_interval =
-      Duration(GetOptionOr(opts, "open_at_interval", open_at_interval.count()));
-  offset = Duration(GetOptionOr(opts, "offset", offset.count()));
-  valve_efficiency = GetOptionOr(opts, "efficiency", valve_efficiency);
-  fuel_measurement_criterium = GetOptionOr(opts, "fuel_measurement_criterium",
-                                           fuel_measurement_criterium);
-  fuel_measurement_position =
-      GetOptionOr(opts, "fuel_measurement_position", fuel_measurement_position);
-  massflow_boundary = GetOptions(opts, "massflow_boundary");
+PressureValveOptions::PressureValveOptions(const ProgramOptions& options) {
+  FUB_GET_OPTION_VAR(options, channel);
+  FUB_GET_OPTION_VAR(options, equivalence_ratio);
+  FUB_GET_OPTION_VAR(options, pressure_value_which_closes_boundary);
+  FUB_GET_OPTION_VAR(options, change_to_fuel_at_interval);
+  FUB_GET_OPTION_VAR(options, change_to_fuel_time_offset);
+  massflow_boundary = GetOptions(options, "massflow_boundary");
 }
 
 PressureValveBoundary::PressureValveBoundary(const IdealGasMix<1>& equation,
                                              PressureValveOptions options)
-    : options_{std::move(options)}, equation_{equation},
-      shared_valve_{std::make_shared<PressureValve>(PressureValve{})} {}
-
-PressureValveBoundary::PressureValveBoundary(
-    const IdealGasMix<1>& eq,
-    const std::map<std::string, pybind11::object>& map)
-    : PressureValveBoundary(eq, PressureValveOptions(map)) {}
+    : options_{std::move(options)}, equation_{equation} {}
 
 const PressureValveOptions& PressureValveBoundary::GetOptions() const noexcept {
   return options_;
+}
+
+const PressureValve& PressureValveBoundary::GetValve() const noexcept {
+  return valve_;
 }
 
 namespace {
@@ -123,8 +86,8 @@ double GetMeanPressure_(const GriddingAlgorithm& grid, IdealGasMix<1>& eq) {
   return pressure;
 }
 
-std::vector<double> GatherMoles_(const GriddingAlgorithm& grid, double x,
-                                 IdealGasMix<1>& eq) {
+[[maybe_unused]] std::vector<double>
+GatherMoles_(const GriddingAlgorithm& grid, double x, IdealGasMix<1>& eq) {
   const PatchHierarchy& hier = grid.GetPatchHierarchy();
   const int nlevel = hier.GetNumberOfLevels();
   std::size_t size = static_cast<std::size_t>(eq.GetReactor().GetNSpecies());
@@ -161,86 +124,53 @@ std::vector<double> GatherMoles_(const GriddingAlgorithm& grid, double x,
                   ::amrex::ParallelContext::CommunicatorAll());
     if (found) {
       const int nspecies = static_cast<int>(size);
-      MPI_Allreduce(local_moles.data(), global_moles.data(), nspecies, MPI_DOUBLE,
-                    MPI_SUM, ::amrex::ParallelContext::CommunicatorAll());
+      MPI_Allreduce(local_moles.data(), global_moles.data(), nspecies,
+                    MPI_DOUBLE, MPI_SUM,
+                    ::amrex::ParallelContext::CommunicatorAll());
       break;
     }
   }
   return global_moles;
 }
 
-double ChangeState_(PressureValveState& state, const ::amrex::Geometry& geom,
+double ChangeState_(PressureValveState& state, const ::amrex::Geometry&,
                     const GriddingAlgorithm& grid, int level,
-                    Duration& last_closed, Duration& last_fuel_change,
+                    Duration& last_fuel_change,
                     const PressureValveOptions& options, IdealGasMix<1>& eq) {
   const double mean_pressure = GetMeanPressure_(grid, eq);
-  const double dx_2 = geom.CellSize(0);
-  const double xlo = geom.ProbDomain().lo(0) + dx_2;
-  const double xhi = geom.ProbDomain().hi(0) - dx_2;
+
   const Duration current_time = grid.GetPatchHierarchy().GetTimePoint(0);
-  const Duration next_open_time = (last_closed.count() < 0.0)
-                                      ? Duration(0.0)
-                                      : last_closed + Duration(1e-3);
   const Duration next_fuel_time =
       (last_fuel_change.count() < 0.0)
-          ? options.offset
-          : last_fuel_change + options.open_at_interval;
+          ? options.change_to_fuel_time_offset
+          : Duration(last_fuel_change + options.change_to_fuel_at_interval);
   boost::log::sources::severity_logger<boost::log::trivial::severity_level> log(
       boost::log::keywords::severity = boost::log::trivial::info);
-  BOOST_LOG_SCOPED_LOGGER_TAG(log, "Channel", options.prefix);
+  BOOST_LOG_SCOPED_LOGGER_TAG(log, "Channel", options.channel);
   BOOST_LOG_SCOPED_LOGGER_TAG(log, "Time", current_time.count());
   BOOST_LOG_SCOPED_LOGGER_TAG(log, "Level", level);
   switch (state) {
   case PressureValveState::closed:
-    if (next_open_time < current_time &&
-        mean_pressure < options.pressure_value_which_opens_boundary) {
+    state = PressureValveState::open_air;
+    BOOST_LOG(log) << "Pressure valve opened for air!";
+    break;
+  case PressureValveState::open_fuel:
+    if (mean_pressure > options.pressure_value_which_closes_boundary) {
       state = PressureValveState::open_air;
-      BOOST_LOG(log) << "pressure valve opened for air!";
+      BOOST_LOG(log)
+          << "Pressure valve changed to air due to high mean pressure (which is"
+          << mean_pressure << " [Pa])!";
     }
     break;
   case PressureValveState::open_air:
-  case PressureValveState::open_fuel:
-    if (mean_pressure > options.pressure_value_which_closes_boundary) {
-      last_closed = current_time;
-      state = PressureValveState::closed;
-      BOOST_LOG(log) << "pressure valve closed due to mean pressure (which is "
-                     << mean_pressure << " [Pa])!";
-    }
-    break;
-  }
-  if (next_fuel_time < current_time && state == PressureValveState::open_air) {
-    // const double x_air =
-    //     std::clamp(options.oxygen_measurement_position, xlo, xhi);
-    // std::vector<double> moles = GatherMoles_(grid, x_air, eq);
-    // const double sum = std::accumulate(moles.begin(), moles.end(), 0.0);
-    // FUB_ASSERT(sum >= 0.0);
-    // if (sum > 0.0) {
-    //   std::transform(moles.begin(), moles.end(), moles.begin(),
-    //                  [sum](double m) { return m / sum; });
-    // }
-    // if (options.oxygen_measurement_criterium < moles[Burke2012::sO2]) {
+    if (next_fuel_time < current_time) {
       state = PressureValveState::open_fuel;
       last_fuel_change = next_fuel_time;
-      BOOST_LOG(log) << "pressure valve changed to fuel!";
-    // }
-  } 
-  // else if (state == PressureValveState::open_fuel) {
-  //   const double x_fuel =
-  //       std::clamp(options.fuel_measurement_position, xlo, xhi);
-  //   std::vector<double> moles = GatherMoles_(grid, x_fuel, eq);
-  //   const double equivalence_ratio =
-  //       moles[Burke2012::sO2]
-  //           ? 0.5 * moles[Burke2012::sH2] / moles[Burke2012::sO2]
-  //           : 0.0;
-  //   if (equivalence_ratio > options.fuel_measurement_criterium) {
-  //     last_closed = current_time;
-  //     state = PressureValveState::closed;
-  //     BOOST_LOG(log)
-  //         << "pressure valve closed due to measured fuel: equivalence ratio at "
-  //         << x_fuel << " [m] is " << equivalence_ratio << " [-]!";
-  //   }
-  // }
-
+      BOOST_LOG(log) << "Pressure valve changed to fuel!";
+    }
+  default:
+    break;
+  }
   return mean_pressure;
 }
 
@@ -267,29 +197,53 @@ void PressureValveBoundary::FillBoundary(::amrex::MultiFab& mf,
   }
 
   // Change State Machine if neccessary
-  ChangeState_(shared_valve_->state, geom, grid, level,
-               shared_valve_->last_closed, shared_valve_->last_fuel, options_,
+  ChangeState_(valve_.state, geom, grid, level, valve_.last_fuel, options_,
                equation_);
 
-  ReflectiveBoundary closed(execution::openmp, equation_, Direction::X, 0);
+  ReflectiveBoundary closed(execution::seq, equation_, Direction::X, 0);
   MassflowBoundary inflow_boundary(equation_, options_.massflow_boundary);
   Complete<IdealGasMix<1>> state{equation_};
-  switch (shared_valve_->state) {
+  switch (valve_.state) {
   case PressureValveState::closed:
     closed.FillBoundary(mf, geom);
     break;
   case PressureValveState::open_air:
   case PressureValveState::open_fuel:
-    FlameMasterReactor& reactor = equation_.GetReactor();
-    reactor.SetDensity(1.0);
-    reactor.SetMoleFractions("O2:21,N2:79");
-    reactor.SetTemperature(300.0);
-    reactor.SetPressure(101325.0);
-    equation_.CompleteFromReactor(state);
-    inflow_boundary.ComputeBoundaryState(state, state);
-    inflow_boundary.FillBoundary(mf, geom, state);
+    inflow_boundary.FillBoundary(mf, grid, level);
   }
-  if (shared_valve_->state == PressureValveState::open_fuel) {
+  if (valve_.state == PressureValveState::open_air) {
+    ForEachFab(execution::seq, mf, [&](const ::amrex::MFIter& mfi) {
+      ::amrex::FArrayBox& fab = mf[mfi];
+      for (const ::amrex::Box& boundary : boundaries) {
+        ::amrex::Box shifted = ::amrex::shift(boundary, 0, ngrow);
+        if (!geom.Domain().intersects(shifted)) {
+          continue;
+        }
+        ::amrex::Box box_to_fill = mfi.growntilebox() & boundary;
+        if (!box_to_fill.isEmpty()) {
+          auto states = MakeView<Complete<IdealGasMix<1>>>(fab, equation_,
+                                                           mfi.growntilebox());
+          ForEachIndex(
+              box_to_fill, [this, &state, &states](std::ptrdiff_t i, auto...) {
+                std::array<std::ptrdiff_t, 1> dest{i};
+                Load(state, states, dest);
+                FUB_ASSERT(state.density > 0.0);
+                FUB_ASSERT(state.pressure > 0.0);
+                FUB_ASSERT(state.temperature > 0.0);
+                equation_.SetReactorStateFromComplete(state);
+                FlameMasterReactor& reactor = equation_.GetReactor();
+                reactor.SetDensity(1.0);
+                reactor.SetMoleFractions("O2:21,N2:79");
+                reactor.SetTemperature(300.0);
+                reactor.SetPressure(state.pressure);
+                Array<double, 1, 1> velocity = equation_.Velocity(state);
+                equation_.CompleteFromReactor(state, velocity);
+                Store(states, state, dest);
+              });
+        }
+      }
+    });
+  } else if (valve_.state == PressureValveState::open_fuel) {
     ForEachFab(execution::seq, mf, [&](const ::amrex::MFIter& mfi) {
       ::amrex::FArrayBox& fab = mf[mfi];
       for (const ::amrex::Box& boundary : boundaries) {
@@ -310,20 +264,14 @@ void PressureValveBoundary::FillBoundary(::amrex::MultiFab& mf,
             FUB_ASSERT(state.temperature > 0.0);
             equation_.SetReactorStateFromComplete(state);
             FlameMasterReactor& reactor = equation_.GetReactor();
-            span<const double> mass_over_mole =
-                reactor.GetMolarMasses(); // kg / kmol
             span<const double> old_moles = reactor.GetMoleFractions();
             std::vector<double> new_moles(old_moles.begin(), old_moles.end());
             new_moles[Burke2012::sH2] =
                 2.0 * options_.equivalence_ratio * new_moles[Burke2012::sO2];
-            const double difference_h2_moles =
-                new_moles[Burke2012::sH2] - old_moles[Burke2012::sH2];
-            const double new_density =
-                state.density +
-                difference_h2_moles * mass_over_mole[Burke2012::sH2];
-            reactor.SetDensity(new_density);
+            reactor.SetDensity(1.0);
             reactor.SetMoleFractions(new_moles);
             reactor.SetTemperature(state.temperature);
+            reactor.SetPressure(state.pressure);
             Array<double, 1, 1> velocity = equation_.Velocity(state);
             equation_.CompleteFromReactor(state, velocity);
             Store(states, state, dest);

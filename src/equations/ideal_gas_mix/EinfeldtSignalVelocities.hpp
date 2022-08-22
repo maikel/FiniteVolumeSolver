@@ -71,8 +71,8 @@ operator()(const IdealGasMix<Dim>&, const CompleteArray& left,
            (uR - uL) * (uR - uL))
           .sqrt();
   const Array1d sL1 = uL - aL;
-  const Array1d sL2 = roeU - 0.5 * roeA;
-  const Array1d sR1 = roeU + 0.5 * roeA;
+  const Array1d sL2 = roeU - roeA;
+  const Array1d sR1 = roeU + roeA;
   const Array1d sR2 = uR + aR;
   return {sL1.min(sL2), sR1.max(sR2)};
 }

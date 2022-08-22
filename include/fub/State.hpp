@@ -78,7 +78,16 @@ constexpr auto Unzip(const std::tuple<Ts...>& zipped) {
       std::make_index_sequence<std::tuple_size<First>::value>(), zipped);
 }
 
-template <std::size_t I, typename State>
+namespace meta {
+template <typename S>
+using has_traits_and_pointers_to_member =
+    decltype(S::Traits::pointers_to_member);
+}
+
+template <
+    std::size_t I, typename State,
+    typename = std::enable_if_t<is_detected<
+        meta::has_traits_and_pointers_to_member, remove_cvref_t<State>>::value>>
 constexpr decltype(auto) get(State&& x) {
   using S = remove_cvref_t<State>;
   constexpr auto& pointers_to_member = S::Traits::pointers_to_member;
@@ -159,9 +168,7 @@ template <typename T, typename Eq> struct DepthsImpl {
 };
 } // namespace detail
 
-template <typename T> struct Type {
-  using type = T;
-};
+template <typename T> struct Type { using type = T; };
 
 inline constexpr struct DepthsFn {
   template <typename Eq, typename State>
@@ -176,9 +183,8 @@ inline constexpr struct DepthsFn {
       detail::DepthsImpl<State, Eq> default_depths;
       return default_depths(eq);
     } else {
-      static_assert(
-          is_tag_invocable<DepthsFn, const Eq&, Type<State>>::value ||
-          is_detected<detail::DepthsT, State, Eq>::value);
+      static_assert(is_tag_invocable<DepthsFn, const Eq&, Type<State>>::value ||
+                    is_detected<detail::DepthsT, State, Eq>::value);
     }
   }
 } Depths;
@@ -199,8 +205,7 @@ template <typename Depths> struct ScalarState : ScalarStateBase<Depths> {
 
   using Base::Base;
 
-  template <typename Equation>
-  ScalarState(const Equation& eq) : Base{} {
+  template <typename Equation> ScalarState(const Equation& eq) : Base{} {
     auto depths = ::fub::Depths(eq, Type<ScalarState>{});
     ForEachVariable(
         overloaded{
@@ -289,6 +294,8 @@ struct StateTraits<Conservative<Eq>> : StateTraits<ConservativeBase<Eq>> {};
 template <typename Eq>
 struct Primitive : ScalarState<typename Eq::PrimitiveDepths> {
   using Base = ScalarState<typename Eq::PrimitiveDepths>;
+  using Equation = Eq;
+  using ValueType = double;
 
   using Base::Base;
 };
@@ -311,6 +318,8 @@ struct StateTraits<KineticState<Eq>>
 template <typename Eq>
 struct Characteristics : ScalarState<typename Eq::CharacteristicsDepths> {
   using Base = ScalarState<typename Eq::CharacteristicsDepths>;
+  using Equation = Eq;
+  using ValueType = double;
 
   using Base::Base;
 };
@@ -421,7 +430,7 @@ struct BasicView : ViewBase<S, L, R> {
 };
 
 template <typename S, typename L, int R>
-BasicView(const BasicView<S, L, R>&) -> BasicView<S, L, R>;
+BasicView(const BasicView<S, L, R>&)->BasicView<S, L, R>;
 
 template <typename S, typename L, int R>
 struct StateTraits<BasicView<S, L, R>> : StateTraits<ViewBase<S, L, R>> {};
@@ -511,14 +520,14 @@ template <typename T> struct GetNumberOfComponentsImpl {
   int_constant<1> operator()(int) const noexcept { return {}; }
 
   template <std::size_t N>
-  int_constant<static_cast<int>(N)>
-  operator()(const std::array<int, N>&) const noexcept {
+  int_constant<static_cast<int>(N)> operator()(const std::array<int, N>&) const
+      noexcept {
     return {};
   }
 
   template <int N, int M, int O, int MR, int MC>
-  int_constant<N>
-  operator()(const Eigen::Array<double, N, M, O, MR, MC>&) const noexcept {
+  int_constant<N> operator()(const Eigen::Array<double, N, M, O, MR, MC>&) const
+      noexcept {
     return {};
   }
 
@@ -535,12 +544,12 @@ template <typename T> struct GetNumberOfComponentsImpl {
 
 template <typename S, typename Layout, int Rank>
 struct GetNumberOfComponentsImpl<BasicView<S, Layout, Rank>> {
-  int_constant<1>
-  operator()(const PatchDataView<double, Rank, Layout>&) const noexcept {
+  int_constant<1> operator()(const PatchDataView<double, Rank, Layout>&) const
+      noexcept {
     return {};
   }
-  int operator()(
-      const PatchDataView<double, Rank + 1, Layout>& pdv) const noexcept {
+  int operator()(const PatchDataView<double, Rank + 1, Layout>& pdv) const
+      noexcept {
     return static_cast<int>(pdv.Extent(Rank));
   }
 };
@@ -561,20 +570,20 @@ template <typename T> struct AtComponentImpl {
   }
 
   template <int N>
-  const double& operator()(const Eigen::Array<double, N, 1>& x,
-                           int n) const noexcept {
+  const double& operator()(const Eigen::Array<double, N, 1>& x, int n) const
+      noexcept {
     return x[n];
   }
 
   template <int N, int M, int O, int MR, int MC>
-  auto operator()(Eigen::Array<double, N, M, O, MR, MC>& x,
-                  int n) const noexcept {
+  auto operator()(Eigen::Array<double, N, M, O, MR, MC>& x, int n) const
+      noexcept {
     return x.row(n);
   }
 
   template <int N, int M, int O, int MR, int MC>
-  auto operator()(const Eigen::Array<double, N, M, O, MR, MC>& x,
-                  int n) const noexcept {
+  auto operator()(const Eigen::Array<double, N, M, O, MR, MC>& x, int n) const
+      noexcept {
     return x.row(n);
   }
 };
@@ -584,14 +593,14 @@ struct AtComponentImpl<BasicView<S, Layout, Rank>> {
   using ValueType = typename BasicView<S, Layout, Rank>::ValueType;
 
   const PatchDataView<ValueType, Rank, Layout>&
-  operator()(const PatchDataView<ValueType, Rank, Layout>& x,
-             int) const noexcept {
+  operator()(const PatchDataView<ValueType, Rank, Layout>& x, int) const
+      noexcept {
     return x;
   }
 
   PatchDataView<ValueType, Rank, Layout>
-  operator()(const PatchDataView<ValueType, Rank + 1, Layout>& x,
-             int n) const noexcept {
+  operator()(const PatchDataView<ValueType, Rank + 1, Layout>& x, int n) const
+      noexcept {
     constexpr std::size_t sRank = Rank;
     std::array<std::ptrdiff_t, sRank + 1> index{};
     index[sRank] = n;
@@ -603,7 +612,7 @@ struct AtComponentImpl<BasicView<S, Layout, Rank>> {
     for (std::size_t r = 0; r < sRank; ++r) {
       strides[r] = x.Stride(r);
     }
-    std::array<std::ptrdiff_t, sRank> origin;
+    std::array<std::ptrdiff_t, sRank> origin{};
     std::copy_n(x.Origin().begin(), Rank, origin.begin());
     if constexpr (std::is_same_v<Layout, layout_stride>) {
       layout_stride::mapping<dynamic_extents<sRank>> mapping{
@@ -662,6 +671,18 @@ void Load(State& state, const BasicView<State, Layout, Rank>& view,
 template <typename Eq, typename Layout>
 void Store(const BasicView<Conservative<Eq>, Layout, Eq::Rank()>& view,
            const Conservative<Eq>& state,
+           const std::array<std::ptrdiff_t, Eq::Rank()>& index) {
+  ForEachComponent(
+      [&](auto data, auto block) {
+        FUB_ASSERT(Contains(data.Box(), index));
+        Store(data, block, index);
+      },
+      view, state);
+}
+
+template <typename Eq, typename Layout>
+void Store(const BasicView<Primitive<Eq>, Layout, Eq::Rank()>& view,
+           const Primitive<Eq>& state,
            const std::array<std::ptrdiff_t, Eq::Rank()>& index) {
   ForEachComponent(
       [&](auto data, auto block) {
@@ -755,11 +776,11 @@ template <typename State>
 struct StateTraits<ViewPointer<State>> : StateTraits<ViewPointerBase<State>> {};
 
 template <typename State>
-ViewPointer(const ViewPointer<State>&) -> ViewPointer<State>;
+ViewPointer(const ViewPointer<State>&)->ViewPointer<State>;
 
 template <typename State>
-ViewPointer<std::add_const_t<State>> AsConst(const ViewPointer<State>& p) noexcept
-{
+ViewPointer<std::add_const_t<State>>
+AsConst(const ViewPointer<State>& p) noexcept {
   ViewPointer<std::add_const_t<State>> cp;
   ForEachVariable([](auto& cptr, auto ptr) { cptr = ptr; }, cp, p);
   return cp;
@@ -794,6 +815,21 @@ ViewPointer<State> End(const BasicView<State, Layout, Rank>& view) {
 template <typename Eq>
 void Load(Complete<Eq>& state,
           nodeduce_t<ViewPointer<const Complete<Eq>>> pointer) {
+  ForEachVariable(
+      overloaded{[](double& x, const double* p) { x = *p; },
+                 [](auto& xs, std::pair<const double*, std::ptrdiff_t> ps) {
+                   const double* p = ps.first;
+                   for (std::size_t i = 0; i < xs.size(); ++i) {
+                     xs[i] = *p;
+                     p += ps.second;
+                   }
+                 }},
+      state, pointer);
+}
+
+template <typename Eq>
+void Load(Primitive<Eq>& state,
+          nodeduce_t<ViewPointer<const Primitive<Eq>>> pointer) {
   ForEachVariable(
       overloaded{[](double& x, const double* p) { x = *p; },
                  [](auto& xs, std::pair<const double*, std::ptrdiff_t> ps) {

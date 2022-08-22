@@ -135,8 +135,8 @@ public:
   ///
   /// This method subcycles finer levels.
   ///
-  /// \param[in] level_num  An integer denoting the patch level where 0 is the
-  /// coarsest level.
+  /// \param[in] level_number  An integer denoting the patch level where 0 is
+  /// the coarsest level.
   ///
   /// \param[in] dt  A stable time step size for the level_num-th patch level.
   ///
@@ -205,11 +205,11 @@ template <int Rank, typename Context, typename SplitMethod>
 Duration
 DimensionalSplitLevelIntegrator<Rank, Context, SplitMethod>::ComputeStableDt(
     int level) {
-  if (level > 0) {
-    Context::FillGhostLayerTwoLevels(level, level - 1);
-  } else {
-    Context::FillGhostLayerSingleLevel(level);
-  }
+  // if (level > 0) {
+  //   Context::FillGhostLayerTwoLevels(level, level - 1);
+  // } else {
+  //   Context::FillGhostLayerSingleLevel(level);
+  // }
   Duration min_dt(std::numeric_limits<double>::max());
   for (int d = 0; d < Rank; ++d) {
     const Direction dir = static_cast<Direction>(d);
@@ -223,6 +223,7 @@ Result<void, TimeStepTooLarge>
 DimensionalSplitLevelIntegrator<Rank, Context, SplitMethod>::
     AdvanceLevelNonRecursively(int this_level, Duration dt,
                                std::pair<int, int> subcycle) {
+  int shared_counter = 0;
   auto AdvanceLevel_Split = [&](Direction dir) {
     return [&, this_level, dir, count_split_steps = 0](
                Duration split_dt) mutable -> Result<void, TimeStepTooLarge> {
@@ -231,6 +232,8 @@ DimensionalSplitLevelIntegrator<Rank, Context, SplitMethod>::
         Context::ApplyBoundaryCondition(this_level, dir);
       }
       count_split_steps += 1;
+      Context::PreSplitStep(this_level, split_dt, dir, {shared_counter, 0});
+      ++shared_counter;
 
       // Check stable time step size and if the CFL condition is violated then
       // restart the coarse time step

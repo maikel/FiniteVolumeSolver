@@ -1,14 +1,21 @@
 import math
 
-dx = 1e-3
+#dx = 256
 x_len = 1.0
-n_cells = int(x_len / dx)
+n_cells = 256 # int(x_len / dx)
+
+
+Rspec = 1.0 # 287.0
+gamma = 1.4
+
+p_ref = 101325.0
+T_ref = 300.0
+rho_ref = p_ref / T_ref / Rspec
 
 RunOptions = {
-  'cfl': 0.5 * 0.9, #/ float(n_cells / 64),
-  # 'final_time': 0.2 / math.sqrt(101325.),
-  'final_time': 5.0,
-  # 'max_cycles': 1,
+  'cfl': 0.1125, # 0.5 * 0.9 / float(n_cells / 64),
+  'final_time': 20.0, #/ math.sqrt(p_ref/rho_ref),
+  'do_backup': 0
 }
 
 GridGeometry = {
@@ -24,37 +31,54 @@ PatchHierarchy = {
  'max_number_of_levels': 1,
  'refine_ratio': [2, 1, 1],
  'blocking_factor': [8, 1, 1],
- 'max_grid_size': [n_cells, 1, 1],
+ 'max_grid_size': [n_cells, n_cells, n_cells],
 }
 
-# ArrheniusKinetics = {
-#   'Q': 8.0,
-#   'EA': 11.0,
-#   'B': 0.05,
-#   'T_switch':1.10,
-# }
+Equation = {
+  'Rspec': Rspec,
+  'gamma': gamma
+}
 
-reconstruction = "Characteristics"
-#reconstruction = "Conservative"
-#reconstruction = "Primitive"
-#reconstruction = "NoReconstruct"
+ArrheniusKinetics = {
+  'Q': 7.5,
+  'EA': 11.0,
+  'B': 0.05,
+  'T_switch': 1.05,
+}
 
-paths = {
-  'HLLE': './HLLE.h5',
-  'NoReconstruct': './HLLEM.h5',
-  'Conservative': './Conservative.h5',
-  'ConservativeM': './ConservativeM.h5',
-  'Primitive': './Primitive.h5',
-  'Characteristics': './Characteristics.h5',
-  'PerfectGas': './PerfectGas1d_cfl05.h5'
+DiffusionSourceTerm = {
+  'mul': 3.0
+}
+
+p = 1.1 # * p_ref
+rho = math.pow(1.1, 1.0 / 1.4) #* rho_ref
+T = p / rho / Rspec
+
+CompressorState = {
+  'pressure': p,
+  'density': rho,
+  'temperature': 1.025 * T, 
+}
+
+def Area(xi):
+  A0  = 1.0
+  A1  = 4.0 # Reference: 3.0; best: 4.0 
+  xi0 = 0.0625# - 1.0
+  xi1 = 0.75# - 1.0   # Reference: 0.5; best: 0.75
+  Ax = 1.0 if xi < xi0 else A0 + (A1-A0)*(xi-xi0)/(xi1-xi0) if xi < xi1 else A1
+  return Ax
+
+FluxMethod = {
+  'reconstruction': 'Characteristics',
+  'area_variation': Area
 }
 
 Output = {
   'outputs': [{
     'type': 'HDF5',
-    'path': paths[reconstruction],
-    'intervals': [0.005],
-    #'frequencies': [1],
+    'path': 'Deflagration.h5',
+    # 'intervals': [],# / math.sqrt(p_ref / rho_ref)],
+    'frequencies': [266],
   },{
     'type': 'CounterOutput',
     'intervals': [1.0],

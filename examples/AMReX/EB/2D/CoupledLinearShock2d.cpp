@@ -275,16 +275,17 @@ int main() {
   connection.tube.id = 0;
   connection.tube.mirror_box =
       tube.GetGriddingAlgorithm()->GetPatchHierarchy().GetGeometry(0).Domain();
+  connection.ghost_cell_width = 2;
 
-  fub::amrex::MultiBlockIntegratorContext context(
-      fub::FlameMasterReactor(mechanism), {tube}, {plenum}, {connection});
+  fub::IdealGasMix<1> tube_equation(mechanism);
+  fub::IdealGasMix<2> plenum_equation(mechanism);
+  fub::amrex::MultiBlockIntegratorContext2 context(
+      tube_equation, plenum_equation, {tube}, {plenum}, {connection});
 
-  fub::IdealGasMix<Plenum_Rank> equation{mechanism};
   fub::DimensionalSplitLevelIntegrator system_solver(
       fub::int_c<Plenum_Rank>, std::move(context), fub::GodunovSplitting());
 
-  fub::amrex::MultiBlockKineticSouceTerm source_term{
-      fub::IdealGasMix<Tube_Rank>{mechanism}};
+  fub::amrex::MultiBlockKineticSouceTerm source_term{tube_equation};
 
   fub::SplitSystemSourceLevelIntegrator level_integrator{
       std::move(system_solver), std::move(source_term)};
@@ -292,11 +293,10 @@ int main() {
   fub::SubcycleFineFirstSolver solver(std::move(level_integrator));
 
   std::string base_name = "MultiBlock_2d";
-  fub::IdealGasMix<Tube_Rank> tube_equation{mechanism};
   using namespace std::literals::chrono_literals;
-  auto output = fub::MakeOutput<fub::amrex::MultiBlockGriddingAlgorithm>(
+  auto output = fub::MakeOutput<fub::amrex::MultiBlockGriddingAlgorithm2>(
       {}, {0.001s / 30.0},
-      [&](const fub::amrex::MultiBlockGriddingAlgorithm& gridding) {
+      [&](const fub::amrex::MultiBlockGriddingAlgorithm2& gridding) {
         std::ptrdiff_t cycle = gridding.GetCycles();
         ::amrex::Print() << "Checkpointing.\n";
         fub::amrex::WriteCheckpointFile(
@@ -313,7 +313,7 @@ int main() {
         name = fmt::format("{}/Plenum/plt{:05}", base_name, cycle);
         ::amrex::Print() << "Start output to '" << name << "'.\n";
         fub::amrex::cutcell::WritePlotFile(
-            name, gridding.GetPlena()[0]->GetPatchHierarchy(), equation);
+            name, gridding.GetPlena()[0]->GetPatchHierarchy(), plenum_equation);
         ::amrex::Print() << "Finished output to '" << name << "'.\n";
       });
   (*output)(*solver.GetGriddingAlgorithm());

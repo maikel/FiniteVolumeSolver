@@ -40,6 +40,7 @@ public:
 
   KineticSourceTerm(const IdealGasMix<Rank>& eq);
 
+  Duration ComputeStableDt(const amrex::IntegratorContext&, int level);
   Duration ComputeStableDt(int level);
 
   Result<void, TimeStepTooLarge>

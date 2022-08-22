@@ -21,7 +21,7 @@
 #ifndef FUB_AMREX_CUTCELL_LOG_PROBES_HPP
 #define FUB_AMREX_CUTCELL_LOG_PROBES_HPP
 
-#include "fub/AMReX/multi_block/MultiBlockGriddingAlgorithm.hpp"
+#include "fub/AMReX/multi_block/MultiBlockGriddingAlgorithm2.hpp"
 #include "fub/ext/ProgramOptions.hpp"
 #include "fub/output/OutputAtFrequencyOrInterval.hpp"
 
@@ -32,11 +32,13 @@
 namespace fub::amrex {
 
 class LogProbesOutput
-    : public OutputAtFrequencyOrInterval<MultiBlockGriddingAlgorithm> {
+    : public OutputAtFrequencyOrInterval<MultiBlockGriddingAlgorithm2> {
 public:
-  LogProbesOutput(const ProgramOptions& vm);
+  LogProbesOutput(const ProgramOptions& options);
+  
+  LogProbesOutput(const ProgramOptions& options, std::vector<std::string> plenum_names, std::vector<std::string> tube_names);
 
-  void operator()(const MultiBlockGriddingAlgorithm& grid) override;
+  void operator()(const MultiBlockGriddingAlgorithm2& grid) override;
 
 private:
   std::string plenum_output_path_;
@@ -45,6 +47,9 @@ private:
   std::string tube_output_path_;
   std::vector<double> tube_probes_;
   int n_tubes_;
+
+  std::vector<std::string> plenum_fields_{};
+  std::vector<std::string> tube_fields_{};
 };
 
 } // namespace fub::amrex

@@ -28,12 +28,24 @@
 
 namespace fub::perfect_gas_mix {
 
+ArrheniusKineticsOptions::ArrheniusKineticsOptions(
+    const ProgramOptions& options) {
+  Q = GetOptionOr(options, "Q", Q);
+  EA = GetOptionOr(options, "EA", EA);
+  B = GetOptionOr(options, "B", B);
+  T_switch = GetOptionOr(options, "T_switch", T_switch);
+}
+
 template <int Rank>
-ArrheniusKinetics<Rank>::ArrheniusKinetics(const PerfectGasMix<Rank>& eq)
-    : equation_{eq}, state_{CompleteArray<PerfectGasMix<Rank>>(eq)},
+ArrheniusKinetics<Rank>::ArrheniusKinetics(const PerfectGasMix<Rank>& eq,
+                                           const ArrheniusKineticsOptions& opts)
+    : options{opts}, equation_{eq}, state_{CompleteArray<PerfectGasMix<Rank>>(
+                                        eq)},
       kinetic_state_{KineticStateArray<PerfectGasMix<Rank>>(eq)} {}
 
-template <int Rank> Duration ArrheniusKinetics<Rank>::ComputeStableDt(int) {
+template <int Rank>
+Duration
+ArrheniusKinetics<Rank>::ComputeStableDt(const amrex::IntegratorContext&, int) {
   return Duration(std::numeric_limits<double>::max());
 }
 
@@ -49,11 +61,17 @@ void Advance_(Equation& eq, CompleteArray<Equation>& state,
   const Array1d T = kinetic_state.temperature;
   FUB_ASSERT(dt > Duration(0.0));
 
-  const MaskArray activator = (T >= options.T_switch);
-  const Array1d rate = Eigen::exp(options.EA * (1.0 - 1.0 / T));
-  const Array1d Xnew = X.row(0) * Eigen::exp(-options.B * dt.count() * rate);
+  const double eps = std::sqrt(std::numeric_limits<double>::epsilon());
+  const Array1d eps_array{Array1d::Constant(eps)};
 
-  const Array1d dX = activator.select((Xnew - X.row(0)), 0.0);
+  const MaskArray activator = (T >= options.T_switch);
+  const MaskArray Xmask = (X.row(0) >= 1.0e-05);
+  const Array1d rate = Eigen::exp(options.EA * (1.0 - 1.0 / T));
+  const Array1d Xnew = Xmask.select(
+      X.row(0) * Eigen::exp(-options.B * dt.count() * rate), eps_array);
+  // const Array1d Xnew = X.row(0) * Eigen::exp(-options.B * dt.count() * rate);
+
+  const Array1d dX = activator.select((Xnew - X.row(0)), eps_array);
   X.row(0) = X.row(0) + dX;
   X.row(1) = X.row(1) - dX;
   FUB_ASSERT(X.colwise().sum().isApproxToConstant(1.0));
@@ -100,59 +118,25 @@ template <int Rank>
 Result<void, TimeStepTooLarge>
 ArrheniusKinetics<Rank>::AdvanceLevel(amrex::IntegratorContext& simulation_data,
                                       int level, Duration dt,
-                                      const ::amrex::IntVect& ngrow) {
+                                      const ::amrex::IntVect&) {
   Timer advance_timer = simulation_data.GetCounterRegistry()->get_timer(
       "ArrheniusKinetics::AdvanceLevel");
   ::amrex::MultiFab& data = simulation_data.GetScratch(level);
-#if defined(_OPENMP) && defined(AMREX_USE_OMP)
-#pragma omp parallel
-#endif
-  for (::amrex::MFIter mfi(data, ::amrex::IntVect(8)); mfi.isValid(); ++mfi) {
+
+  amrex::ForEachFab(execution::openmp, data, [&](const ::amrex::MFIter& mfi) {
     using Complete = ::fub::Complete<PerfectGasMix<Rank>>;
-    View<Complete> states = amrex::MakeView<Complete>(data[mfi], *equation_,
-                                                      mfi.growntilebox(ngrow));
+    View<Complete> states =
+        amrex::MakeView<Complete>(data[mfi], *equation_, mfi.growntilebox());
     PerfectGasMix<Rank>& eq = *equation_;
     auto& state = *state_;
     auto& kinetic_state = *kinetic_state_;
     ForEachRow(std::tuple{states},
                ArrheniusKinetics_Rows<PerfectGasMix<Rank>>{
                    &eq, &state, &kinetic_state, &options, dt});
+  });
 
-    // ForEachIndex(Box<0>(states), [&](auto... is) {
-    //   std::array<std::ptrdiff_t, sRank> index{is...};
-    //   Load(state, states, index);
-
-    //   FUB_ASSERT(eq.n_species >= 1);
-    //   euler::KineticStateFromComplete(eq, kinetic_state, state);
-    //   Array<double, -1, 1>& X = kinetic_state.mole_fractions;
-    //   FUB_ASSERT(X.colwise().sum().isApproxToConstant(1.0));
-    //   const double T = kinetic_state.temperature;
-    //   FUB_ASSERT(dt > Duration(0.0));
-
-    //   const int activator = (T >= options.T_switch);
-    //   const double rate = std::exp( options.EA * ( 1.0 -1.0 / T) );
-    //   const double Xnew = X[0] * std::exp( - options.B * dt.count() * rate );
-
-    //   const double dX = activator * (Xnew - X[0]);
-    //   X[0] = X[0] + dX;
-    //   X[1] = X[1] - dX;
-    //   FUB_ASSERT(X.colwise().sum().isApproxToConstant(1.0));
-
-    //   const Array<double, Rank, 1> velocity = euler::Velocity(eq, state);
-    //   euler::CompleteFromKineticState(eq, state, kinetic_state, velocity);
-
-    //   state.energy += - options.Q * state.density * dX;
-
-    //   fub::CompleteFromCons(eq, state, state);
-
-    //   Store(states, state, index);
-    // });
-  }
-
-  if (level == 0) {
-    simulation_data.FillGhostLayerSingleLevel(level);
-  } else {
-    simulation_data.FillGhostLayerTwoLevels(level, level - 1);
+  for (Direction dir : {Direction::X, Direction::Y, Direction::Z}) {
+    simulation_data.ApplyBoundaryCondition(level, dir);
   }
   return boost::outcome_v2::success();
 }

@@ -44,7 +44,7 @@ public:
   /// ranks.
   CompressibleAdvectionIntegratorContext(
       const CompressibleAdvectionIntegratorContext&);
-  CompressibleAdvectionIntegratorContext
+  CompressibleAdvectionIntegratorContext&
   operator=(const CompressibleAdvectionIntegratorContext&);
 
   CompressibleAdvectionIntegratorContext(

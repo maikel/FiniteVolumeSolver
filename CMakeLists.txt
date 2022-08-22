@@ -133,6 +133,14 @@ option(FUB_WARN_CONVERSION "Compile with warnings regarding implicit sign conver
 configure_file(${CMAKE_CURRENT_SOURCE_DIR}/include/fub/config.hpp.in
                ${CMAKE_BINARY_DIR}/include/fub/config.hpp)
 
+# Add a custom command that produces version.cpp, plus
+# a dummy output that's not actually produced, in order
+# to force version.cmake to always be re-run before the build
+ADD_CUSTOM_COMMAND(
+    OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/version.cpp
+           ${CMAKE_CURRENT_BINARY_DIR}/_version.cpp
+    COMMAND ${CMAKE_COMMAND} -P
+            ${CMAKE_CURRENT_SOURCE_DIR}/cmake/version.cmake)
 ################################################################################
 # [FiniteVolumeSolver.Core]
 
@@ -187,7 +195,14 @@ install(
 find_package(fmt REQUIRED)
 find_package(Vc REQUIRED)
 find_package(HDF5 REQUIRED COMPONENTS C)
-find_package(pybind11 REQUIRED)
+find_package(Python COMPONENTS Interpreter Development REQUIRED)
+if (TARGET CONAN_PKG::pybind11)
+  message(STATUS "Use pybind11 from conan repository")
+  message(STATUS "pybind11 configs: ${CONAN_BUILD_MODULES_PATHS_PYBIND11}")
+  find_package(pybind11 CONFIGS "pybind11Install.cmake" REQUIRED)
+else()
+  find_package(pybind11 REQUIRED)
+endif()
 
 add_library(FiniteVolumeSolver.Solver
   include/fub/boundary_condition/TransmissiveBoundary.hpp
@@ -208,16 +223,22 @@ add_library(FiniteVolumeSolver.Solver
   include/fub/equations/perfect_gas/ThirdOrderRungeKuttaMethod.hpp
   include/fub/equations/perfect_gas/GodunovMethod.hpp
   include/fub/equations/ShallowWater.hpp
+  include/fub/equations/RequireMassflow.hpp
   include/fub/ext/Eigen.hpp
   include/fub/ext/outcome.hpp
   include/fub/ext/Log.hpp
+  include/fub/ext/Version.hpp
   include/fub/ext/Mpi.hpp
+  include/fub/PoolAllocator.hpp
+  src/PoolAllocator.cpp
   include/fub/flux_method/FluxMethod.hpp
   include/fub/flux_method/GodunovMethod.hpp
   include/fub/flux_method/HllMethod.hpp
   include/fub/flux_method/MusclHancockMethod.hpp
   include/fub/cutcell_method/KbnStabilisation.hpp
   include/fub/cutcell_method/MyStabilisation.hpp
+  include/fub/cutcell_method/HGridReconstruction.hpp
+  include/fub/cutcell_method/HGridReconstruction2.hpp
   include/fub/initial_data/Constant.hpp
   include/fub/initial_data/ShockMachnumber.hpp
   include/fub/tagging_method/GradientDetector.hpp
@@ -265,11 +286,13 @@ add_library(FiniteVolumeSolver.Solver
   include/fub/split_method/StrangSplitting.hpp
   include/fub/split_method/StrangSplittingLumped.hpp
   include/fub/ext/ProgramOptions.hpp
+  include/fub/ext/CopyInputFile.hpp
   include/fub/counter/Counter.hpp
   include/fub/counter/CounterRegistry.hpp
   include/fub/counter/CounterResult.hpp
   include/fub/counter/Timer.hpp
   src/ext/Log.cpp
+  src/ext/Version.cpp
   src/boundary_condition/ReflectiveBoundary.cpp
   src/equations/Advection.cpp
   src/equations/advection/GodunovMethod.cpp
@@ -307,6 +330,9 @@ add_library(FiniteVolumeSolver.Solver
   src/equations/PerfectGasMix.cpp
   src/equations/perfect_gas_mix/HllemMethod_1d.cpp
   src/equations/perfect_gas_mix/HllemMethod_2d.cpp
+  src/equations/perfect_gas_mix/EinfeldtSignalVelocities_1d.cpp
+  src/equations/perfect_gas_mix/EinfeldtSignalVelocities_2d.cpp
+  src/equations/perfect_gas_mix/EinfeldtSignalVelocities_3d.cpp
   src/equations/IdealGasMix.cpp
   src/equations/ideal_gas_mix/EinfeldtSignalVelocities_1d.cpp
   src/equations/ideal_gas_mix/EinfeldtSignalVelocities_2d.cpp
@@ -325,6 +351,7 @@ add_library(FiniteVolumeSolver.Solver
   src/equations/ideal_gas_mix/mechanism/Burke2012.cpp
   src/cutcell_method/KbnStabilisation.cpp
   src/cutcell_method/MyStabilisation.cpp
+  src/cutcell_method/AnyMdLimiter.cpp
   src/tagging_method/TagBuffer.cpp
   src/tagging_method/TagCutCells.cpp
   src/ext/Mpi.cpp
@@ -338,9 +365,11 @@ add_library(FiniteVolumeSolver.Solver
   src/HyperbolicPatchIntegrator.cpp
   src/RunSimulation.cpp
   src/ext/ProgramOptions.cpp
+  src/ext/CopyInputFile.cpp
   src/counter/Counter.cpp
   src/counter/CounterRegistry.cpp
-  src/counter/Timer.cpp)
+  src/counter/Timer.cpp
+  ${CMAKE_CURRENT_BINARY_DIR}/version.cpp)
 target_link_libraries(FiniteVolumeSolver.Solver
   PUBLIC
     FiniteVolumeSolver.Core
@@ -353,7 +382,9 @@ target_link_libraries(FiniteVolumeSolver.Solver
     Boost::serialization
     Eigen3::Eigen
     Vc::Vc
-    pybind11::embed)
+    pybind11::embed
+    range-v3
+    CONAN_PKG::cgal)
 target_include_directories(FiniteVolumeSolver.Solver
   PRIVATE
     $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}>)
@@ -386,6 +417,8 @@ if (AMReX_FOUND AND TARGET AMReX::amrex)
     include/fub/AMReX/boundary_condition/MassflowBoundary.hpp
     include/fub/AMReX/initial_data/ConstantData.hpp
     include/fub/AMReX/AxialSourceTerm.hpp
+    include/fub/AMReX/DiffusionSourceTerm.hpp
+    src/AMReX/DiffusionSourceTerm.cpp
     include/fub/AMReX/GriddingAlgorithm.hpp
     include/fub/AMReX/IgniteDetonation.hpp
     include/fub/AMReX/PatchHierarchy.hpp
@@ -413,11 +446,14 @@ if (AMReX_FOUND AND TARGET AMReX::amrex)
     src/equations/ideal_gas_mix/KineticSourceTerm.cpp
     src/equations/perfect_gas_mix/IgnitionDelayKinetics.cpp
     src/equations/perfect_gas_mix/ArrheniusKinetics.cpp
+    src/equations/perfect_gas_mix/PlenaControl.cpp
+    src/equations/perfect_gas_mix/FluxMethodFactory.cpp
     src/AMReX/boundary_condition/BoundarySet.cpp
     src/AMReX/boundary_condition/TransmissiveBoundary.cpp
     src/AMReX/boundary_condition/IsentropicPressureBoundary.cpp
     src/AMReX/boundary_condition/PressureValveBoundary.cpp
     src/AMReX/boundary_condition/MassflowBoundary.cpp
+    src/AMReX/boundary_condition/TurbinePlenumBoundaryCondition.cpp
     src/AMReX/AxialSourceTerm.cpp
     src/AMReX/IgniteDetonation.cpp
     src/AMReX/ScopeGuard.cpp
@@ -434,7 +470,12 @@ if (AMReX_FOUND AND TARGET AMReX::amrex)
     src/AMReX/IntegratorContext.cpp
     src/AMReX/tagging_method/TagBuffer.cpp
     src/AMReX/tagging_method/ConstantRegion.cpp
-    src/geometry/Union.cpp)
+    src/geometry/Union.cpp
+    src/AMReX/output/WriteHdf5Impl.hpp
+    src/AMReX/output/WriteHdf5Impl.cpp)
+    # src/AMReX_MultiBlockBoundary.H
+    # src/AMReX_MultiBlockBoundaryImpl.H
+    # src/AMReX_MultiBlockBoundary.cpp)
   target_include_directories(FiniteVolumeSolver.AMReX
     PUBLIC
       $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
@@ -459,7 +500,7 @@ if (AMReX_FOUND AND TARGET AMReX::amrex)
       Boost::filesystem
       Boost::serialization
       Eigen3::Eigen
-      CONAN_PKG::HDF5)
+      hdf5::hdf5)
   target_include_directories(FiniteVolumeSolver.AMReX PUBLIC ${HDF5_C_INCLUDE_DIR})
 
   if (AMReX_2D_FOUND)
@@ -479,6 +520,7 @@ if (AMReX_FOUND AND TARGET AMReX::amrex)
         src/geometry/ExpandTube.cpp
         include/fub/AMReX_CutCell.hpp
         include/fub/AMReX/cutcell/FluxMethod.hpp
+        include/fub/AMReX/cutcell/MyFluxMethod.hpp
         include/fub/AMReX/cutcell/GriddingAlgorithm.hpp
         include/fub/AMReX/cutcell/IndexSpace.hpp
         include/fub/AMReX/cutcell/PatchHierarchy.hpp
@@ -503,6 +545,7 @@ if (AMReX_FOUND AND TARGET AMReX::amrex)
         include/fub/AMReX/cutcell/output/WritePlotfiles.hpp
         include/fub/AMReX/cutcell/output/PerfectGasProbesOutput.hpp
         include/fub/AMReX/cutcell/output/DebugOutput.hpp
+        src/equations/perfect_gas_mix/CutCellMethodFactory.cpp
         src/AMReX/cutcell/output/DebugOutput.cpp
         include/fub/AMReX/multi_block/MultiBlockBoundary.hpp
         include/fub/AMReX/multi_block/MultiBlockBoundary2.hpp
@@ -544,7 +587,9 @@ if (AMReX_FOUND AND TARGET AMReX::amrex)
         src/AMReX/multi_block/MultiBlockIntegratorContext.cpp
         src/AMReX/multi_block/MultiBlockIntegratorContext2.cpp
         src/AMReX/multi_block/MultiBlockKineticSourceTerm.cpp
-        src/AMReX/multi_block/MultiBlockIgniteDetonation.cpp)
+        src/AMReX/multi_block/MultiBlockIgniteDetonation.cpp
+        src/AMReX/cutcell/output/WriteHdf5Impl.hpp
+        src/AMReX/cutcell/output/WriteHdf5Impl.cpp)
     target_compile_options(FiniteVolumeSolver.AMReX.EB
       PRIVATE
         $<$<OR:$<CXX_COMPILER_ID:AppleClang>,$<CXX_COMPILER_ID:Clang>,$<CXX_COMPILER_ID:GNU>>:-Wpedantic>
@@ -555,6 +600,12 @@ if (AMReX_FOUND AND TARGET AMReX::amrex)
     set_property(TARGET FiniteVolumeSolver.AMReX.EB PROPERTY CXX_VISIBILITY_PRESET "hidden")
     set_property(TARGET FiniteVolumeSolver.AMReX.EB PROPERTY VISIBILITY_INLINES_HIDDEN "hidden")
     target_link_libraries(FiniteVolumeSolver.AMReX.EB PUBLIC FiniteVolumeSolver.AMReX)
+    target_include_directories(FiniteVolumeSolver.AMReX.EB PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
+
+    if (AMReX_2D_FOUND)
+      target_sources(FiniteVolumeSolver.AMReX.EB PRIVATE
+        src/equations/perfect_gas_mix/PlenaControlOutput.cpp)
+    endif()
   endif()
 
   if (FUB_WITH_OPENMP AND AMREX_ENABLE_OMP)
@@ -619,7 +670,7 @@ endif()
 ################################################################################
 # Doxygen target
 
-find_package(Doxygen)
+find_package(Doxygen QUIET)
 if (DOXYGEN_FOUND)
     # set input and output files
     set(DOXYGEN_IN ${PROJECT_SOURCE_DIR}/docs/Doxyfile.in)

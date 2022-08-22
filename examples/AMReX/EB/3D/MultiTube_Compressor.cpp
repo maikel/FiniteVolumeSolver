@@ -147,7 +147,8 @@ auto MakeTubeSolver(fub::Burke2012& mechanism,
   }();
 
   fub::ideal_gas::MusclHancockPrimMethod<Tube_Rank> flux_method{equation};
-  HyperbolicMethod method{FluxMethodAdapter(flux_method), EulerForwardTimeIntegrator(),
+  HyperbolicMethod method{FluxMethodAdapter(flux_method),
+                          EulerForwardTimeIntegrator(),
                           Reconstruction(equation)};
 
   const int scratch_gcw = 4;
@@ -216,7 +217,7 @@ auto MakePlenumSolver(fub::Burke2012& mechanism,
 
   ::amrex::RealBox inlet{{-0.1, -0.5, -0.5}, {0.05, +0.5, +0.5}};
   ::amrex::RealBox outlet{{0.5, -0.5, -0.5}, {0.54, +0.5, +0.5}};
-  //const ::amrex::Box inlet_box =
+  // const ::amrex::Box inlet_box =
   //    fub::amrex::BoxWhichContains(inlet, coarse_geom);
   const ::amrex::Box outlet_box =
       fub::amrex::BoxWhichContains(outlet, coarse_geom);
@@ -292,7 +293,7 @@ struct CheckpointOptions {
 
 void WriteCheckpoint(
     const std::string& path,
-    const fub::amrex::MultiBlockGriddingAlgorithm& grid,
+    const fub::amrex::MultiBlockGriddingAlgorithm2& grid,
     fub::span<const std::shared_ptr<fub::amrex::PressureValve>> valves,
     int rank, const fub::amrex::MultiBlockIgniteDetonation& ignition) {
   auto tubes = grid.GetTubes();
@@ -365,9 +366,10 @@ void MyMain(const fub::ProgramOptions& options) {
   MakeConnection(4);
 
   fub::IdealGasMix<Tube_Rank> tube_equation{mechanism};
+  fub::IdealGasMix<Plenum_Rank> plenum_equation{mechanism};
 
-  fub::amrex::MultiBlockIntegratorContext context(
-      fub::FlameMasterReactor(mechanism), std::move(tubes), std::move(plenum),
+  fub::amrex::MultiBlockIntegratorContext2 context(
+      tube_equation, plenum_equation, std::move(tubes), std::move(plenum),
       std::move(connectivity), valves);
 
   fub::DimensionalSplitLevelIntegrator system_solver(
@@ -395,7 +397,7 @@ void MyMain(const fub::ProgramOptions& options) {
     boost::archive::text_iarchive ia(ifs);
     std::vector<fub::Duration> last_ignitions;
     ia >> last_ignitions;
-    ignition.SetNextIgnitionTimePoints(last_ignitions);
+    ignition.SetLastIgnitionTimePoints(last_ignitions);
   }
 
   fub::SplitSystemSourceLevelIntegrator ign_solver(
@@ -408,15 +410,20 @@ void MyMain(const fub::ProgramOptions& options) {
 
   fub::SubcycleFineFirstSolver solver(std::move(level_integrator));
 
-  fub::OutputFactory<fub::amrex::MultiBlockGriddingAlgorithm> factory{};
-  factory.RegisterOutput<fub::amrex::MultiWriteHdf5>("HDF5");
-  factory.RegisterOutput<fub::amrex::MultiBlockPlotfileOutput>("Plotfile");
+  fub::OutputFactory<fub::amrex::MultiBlockGriddingAlgorithm2> factory{};
+  factory.RegisterOutput<fub::amrex::MultiWriteHdf5WithNames>(
+      "HDF5", plenum_equation, tube_equation);
+  using PlotfileOutput =
+      fub::amrex::MultiBlockPlotfileOutput2<fub::IdealGasMix<Tube_Rank>,
+                                            fub::IdealGasMix<Plenum_Rank>>;
+  factory.RegisterOutput<PlotfileOutput>("Plotfile", tube_equation,
+                                         plenum_equation);
   factory.RegisterOutput<fub::amrex::LogProbesOutput>("LogProbes");
   using CounterOutput =
-      fub::CounterOutput<fub::amrex::MultiBlockGriddingAlgorithm,
+      fub::CounterOutput<fub::amrex::MultiBlockGriddingAlgorithm2,
                          std::chrono::milliseconds>;
   factory.RegisterOutput<CounterOutput>("CounterOutput", wall_time_reference);
-  fub::MultipleOutputs<fub::amrex::MultiBlockGriddingAlgorithm> outputs(
+  fub::MultipleOutputs<fub::amrex::MultiBlockGriddingAlgorithm2> outputs(
       std::move(factory), fub::GetOptions(options, "Output"));
 
   outputs(*solver.GetGriddingAlgorithm());

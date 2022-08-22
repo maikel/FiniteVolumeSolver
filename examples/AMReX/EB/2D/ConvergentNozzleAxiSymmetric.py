@@ -4,7 +4,7 @@ plenum_x_n_cells = 256
 tube_blocking_factor = 8
 plenum_blocking_factor = 8
 
-n_level = 2
+n_level = 1
 
 n_tubes = 6
 r_tube = 0.015
@@ -25,7 +25,7 @@ plenum_x_length = plenum_x_upper - plenum_x_lower
 plenum_length = plenum_x_length # [m]
 tube_length = 2.083 - 0.5 # [m]
 
-plenum_max_grid_size = max(plenum_blocking_factor, 64)
+plenum_max_grid_size = max(plenum_blocking_factor, 1024)
 
 plenum_domain_length = plenum_length + inlet_length
 tube_domain_length = tube_length - inlet_length
@@ -63,12 +63,13 @@ tube_n_cells -= tube_n_cells % tube_blocking_factor
 tube_n_cells = int(tube_n_cells)
 
 RunOptions = {
-  'cfl': 0.4,
-  'final_time': 0.021,
+  'cfl': 0.8,
+  'final_time': 0.15,
   'max_cycles': -1
 }
 
-#checkpoint = '/srv/public/Maikel/FiniteVolumeSolver/build_2D-Release/ConvergentNozzleAxi/Checkpoint/000012985'
+# checkpoint = '/srv/public/Maikel/FiniteVolumeSolver/build_2D-Release/ConvergentNozzleAxi/Checkpoint/000000660'
+# checkpoint = '/srv/public/Maikel/FiniteVolumeSolver/build_2D-RelWithDebugInfo/ConvergentNozzleAxi/Checkpoint/000000672'
 checkpoint = ''
 
 Plenum = {
@@ -133,6 +134,7 @@ Tube = {
   'PatchHierarchy': {
     'max_number_of_levels': n_level, 
     'blocking_factor': [tube_blocking_factor, 1, 1],
+    'max_grid_size': [tube_n_cells, tube_n_cells, tube_n_cells],
     'refine_ratio': [2, 1, 1],
     'n_proper': 1,
     'n_error_buf': [4, 0, 0]
@@ -140,10 +142,8 @@ Tube = {
   'PressureValveBoundary': {
     'prefix': 'PressureValve',
     'efficiency': 1.0,
-    'open_at_interval': 0.03333333,
-    'offset': 0.01,
-    'fuel_measurement_position': -0.15,
-    'fuel_measurement_criterium': 0.9,
+    'change_to_fuel_at_interval': 0.06,
+    'change_to_fuel_time_offset': 0.1,
     'pressure_value_which_opens_boundary': 101325.0,
     'pressure_value_which_closes_boundary': 3.0e5,
     'equivalence_ratio': 1.0,
@@ -168,29 +168,37 @@ Output = {
   {
     'type': 'HDF5',
     'which_block': 0,
-    'path': 'ConvergentNozzleAxi/Plenum.h5',
-    'intervals': [1e-4]
+    'path': 'ConvergentNozzleAxi_long_air/Plenum.h5',
+    'intervals': [5e-4]
+  },
+  {
+    'type': 'HDF5',
+    'which_block': 1,
+    'path': 'ConvergentNozzleAxi_long_air/Tube.h5',
+    'intervals': [5e-5]
   },
   {
     'type': 'Plotfiles',
-    'directory': 'ConvergentNozzleAxi/Plotfiles/',
+    'directory': 'ConvergentNozzleAxi_long_air/Plotfiles/',
     'intervals': [1e-4],
     # 'frequencies': [1]
-  }, {
+  },
+  {
     'type': 'Checkpoint',
-    'directory': 'ConvergentNozzleAxi/Checkpoint/',
+    'directory': 'ConvergentNozzleAxi_long_air/Checkpoint/',
     'intervals': [1e-3],
-    'frequencies': []
-  }, {
+    # 'frequencies': [1]
+  },
+  {
     'type': 'CounterOutput',
     'frequencies': [1000]
   }]
 }
 
 IgniteDetonation = {
-  'interval': 0.06,
-  'offset': 0.018,
-  'measurement_position': -0.3, # -0.45
+  'ignite_interval': 0.06,
+  'offset': 0.001,
+  'measurement_position': -1.0, # -0.45
   'equivalence_ratio_criterium': 0.9,
-  'position': -0.8
+  'ignite_position': -1.2
 }

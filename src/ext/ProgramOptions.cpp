@@ -28,6 +28,7 @@
 #include <boost/program_options.hpp>
 
 #include <fstream>
+#include <iostream>
 #include <string>
 
 namespace fub {
@@ -38,14 +39,29 @@ Direction GetOptionOr(const ProgramOptions& map, const std::string& name,
   return static_cast<Direction>(dir_v);
 }
 
+template <>
+Duration GetOptionOr(const ProgramOptions& map, const std::string& name,
+                     const Duration& value) {
+  Duration dur(GetOptionOr(map, name, value.count()));
+  return dur;
+}
+
 std::map<std::string, pybind11::object>
-ParsePythonScript(const boost::filesystem::path& path, MPI_Comm comm) {
+ParsePythonScript(const boost::filesystem::path& path, MPI_Comm comm,
+                  const std::vector<std::string>& args) {
   if (!boost::filesystem::is_regular_file(path)) {
     throw std::runtime_error(
         fmt::format("Path '{}' is not a regular file", path.string()));
   }
   std::string content = ReadAndBroadcastFile(path.string(), comm);
-  pybind11::exec(content.c_str());
+  using namespace pybind11::literals;
+  if (args.size() > 0) {
+    auto globals = pybind11::globals();
+    globals["args"] = args;
+    pybind11::exec(content.c_str(), globals);
+  } else {
+    pybind11::exec(content.c_str());
+  }
   std::map<std::string, pybind11::object> options;
   for (const auto& [key, value] : pybind11::globals()) {
     const auto name = key.cast<std::string>();
@@ -71,6 +87,9 @@ std::optional<ProgramOptions> ParseCommandLine(int argc, char** argv) {
   std::string config_path{};
   desc.add_options()("config", po::value<std::string>(&config_path),
                      "Path to the config file which can be parsed.");
+  desc.add_options()("args",
+                     po::value<std::vector<std::string>>()->multitoken(),
+                     "Arguments for the input file");
   desc.add_options()("help", "Print this help message.");
   po::variables_map vm;
   ProgramOptions options{};
@@ -80,21 +99,29 @@ std::optional<ProgramOptions> ParseCommandLine(int argc, char** argv) {
     po::store(po::parse_command_line(argc, argv, desc), vm);
     if (vm.count("config")) {
       config_path = vm["config"].as<std::string>();
-      options = ParsePythonScript(config_path, MPI_COMM_WORLD);
+      std::vector<std::string> args{};
+      if (vm.count("args")) {
+        args = vm["args"].as<std::vector<std::string>>();
+      }
+      options = ParsePythonScript(config_path, MPI_COMM_WORLD, args);
     }
     po::notify(vm);
   } catch (std::exception& e) {
-    logger::sources::severity_logger<severity_level> log(
-        logger::keywords::severity = error);
-    BOOST_LOG(log) << "An Error occured while reading program options:";
-    BOOST_LOG(log) << e.what();
+    int mpi_rank = -1;
+    MPI_Comm_rank(MPI_COMM_WORLD, &mpi_rank);
+    if (mpi_rank == 0) {
+      std::cerr << "An Error occured while reading program options:\n";
+      std::cerr << e.what();
+    }
     return {};
   }
 
   if (vm.count("help")) {
-    logger::sources::severity_logger<severity_level> log(
-        logger::keywords::severity = info);
-    BOOST_LOG(log) << desc;
+    int mpi_rank = -1;
+    MPI_Comm_rank(MPI_COMM_WORLD, &mpi_rank);
+    if (mpi_rank == 0) {
+      std::cout << desc;
+    }
     return {};
   }
 

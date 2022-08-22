@@ -30,6 +30,8 @@ void Hllem<EulerEquation, Larrouturou>::SolveRiemannProblem(
   int d = static_cast<int>(dir);
   left_ = left;
   right_ = right;
+  const double Msq = euler::MaSq(equation_);
+  const double Minv = 1.0 / std::sqrt(Msq);
   const double rhoL = fub::euler::Density(equation_, left_);
   const double rhoR = fub::euler::Density(equation_, right_);
   [[maybe_unused]] Array<double, 1, Dim> vL_ =
@@ -49,8 +51,8 @@ void Hllem<EulerEquation, Larrouturou>::SolveRiemannProblem(
       left_.momentum[i] *= dim_mask[i];
       right_.momentum[i] *= dim_mask[i];
     }
-    eKinRL *= 0.5;
-    eKinRR *= 0.5;
+    eKinRL *= 0.5 * Msq;
+    eKinRR *= 0.5 * Msq;
     left_.energy -= rhoL * eKinRL;
     right_.energy -= rhoR * eKinRR;
   }
@@ -85,14 +87,15 @@ void Hllem<EulerEquation, Larrouturou>::SolveRiemannProblem(
   const double gammaR = fub::euler::Gamma(equation_, right_);
   const double roeGamma = (sqRhoL * gammaL + sqRhoR * gammaR) / sqRhoSum;
   const double gm1 = roeGamma - 1.0;
-  const double beta = gm1 / (2 * roeGamma);
+  // const double beta = gm1 / (2 * roeGamma);
 
-  const double roeA2 = gm1 * (roeH - 0.5 * roeU.matrix().squaredNorm());
+  const double roeA2 = gm1 * (roeH - 0.5 * Msq * roeU.matrix().squaredNorm());
   const double roeA = std::sqrt(roeA2);
-  const double sL1 = uL - beta * aL;
-  const double sL2 = roeU0 - roeA;
-  const double sR1 = roeU0 + roeA;
-  const double sR2 = uR + beta * aR;
+  const double maxA = std::max(aL, aR);
+  const double sL1 = uL - maxA * Minv;
+  const double sL2 = roeU0 - roeA * Minv;
+  const double sR1 = roeU0 + roeA * Minv;
+  const double sR2 = uR + maxA * Minv;
 
   const double sL = std::min(sL1, sL2);
   const double sR = std::max(sR1, sR2);
@@ -108,7 +111,7 @@ void Hllem<EulerEquation, Larrouturou>::SolveRiemannProblem(
       },
       w_hlle_, fluxL_, fluxR_, AsCons(left_), AsCons(right_));
 
-  const double squaredNormRoeU = roeU.matrix().squaredNorm();
+  const double squaredNormRoeU = Msq * roeU.matrix().squaredNorm();
   const double squaredNormRoeU_half = 0.5 * squaredNormRoeU;
   const double u_bar = 0.5 * (sR + sL);
   const double u_bar_abs = std::abs(u_bar);
@@ -119,8 +122,8 @@ void Hllem<EulerEquation, Larrouturou>::SolveRiemannProblem(
   const double deltaRhoE = rhoER - rhoEL;
 
   if constexpr (Dim == 1) {
-    const double l21 = gm1 / roeA2 * (roeH - roeU.matrix().squaredNorm());
-    const double l22 = gm1 / roeA2 * roeU[0];
+    const double l21 = gm1 / roeA2 * (roeH - Msq * roeU.matrix().squaredNorm());
+    const double l22 = gm1 / roeA2 * Msq * roeU[0];
     const double l23 = gm1 / roeA2 * (-1.0);
     const double alpha_2 =
         l21 * deltaRho + l22 * deltaRhoU[0] + l23 * deltaRhoE;
@@ -129,7 +132,7 @@ void Hllem<EulerEquation, Larrouturou>::SolveRiemannProblem(
     w_hllem_.momentum = w_hlle_.momentum - u_bar_delta_alpha_2 * roeU[0];
     w_hllem_.energy =
         w_hlle_.energy - u_bar_delta_alpha_2 * squaredNormRoeU_half;
-    if constexpr (fub::euler::state_with_species<EulerEquation,
+    if constexpr (fub::euler::state_with_species<
                                                  Conservative>()) {
       const int n_species = w_hllem_.species.size();
       for (int i = 0; i < n_species; ++i) {
@@ -153,11 +156,34 @@ void Hllem<EulerEquation, Larrouturou>::SolveRiemannProblem(
         }
       }
     }
+    if constexpr (fub::euler::state_with_passive_scalars<Conservative>()) {
+      const int n_passive_scalars = w_hllem_.passive_scalars.size();
+      for (int i = 0; i < n_passive_scalars; ++i) {
+        const double rhoYL = left_.passive_scalars[i];
+        const double rhoYR = right_.passive_scalars[i];
+        const double YL = rhoYL / rhoL;
+        const double YR = rhoYR / rhoR;
+        if constexpr (Larrouturou) {
+          const int upwind = (u_bar > 0.0);
+          w_hllem_.passive_scalars[i] =
+              w_hllem_.density * (upwind * YL + (1 - upwind) * YR);
+        } else {
+          const double roeY = (sqRhoL * YL + sqRhoR * YR) / sqRhoSum;
+          const double deltaRhoY = rhoYR - rhoYL;
+          const double li1 = -roeY;
+          const double li4 = 1.0;
+          const double alpha_i = li1 * deltaRho + li4 * deltaRhoY;
+          w_hllem_.passive_scalars[i] = w_hlle_.passive_scalars[i] -
+                                        u_bar_delta_alpha_2 * roeY -
+                                        u_bar * delta * alpha_i;
+        }
+      }
+    }
   } else if constexpr (Dim == 2) {
     const int ix = int(dir);
     const int iy = (ix + 1) % 2;
-    const double l21 = gm1 / roeA2 * (roeH - roeU.matrix().squaredNorm());
-    const double l22 = gm1 / roeA2 * roeU[0];
+    const double l21 = gm1 / roeA2 * (roeH - Msq * roeU.matrix().squaredNorm());
+    const double l22 = gm1 / roeA2 * Msq * roeU[0];
     const double l23 = gm1 / roeA2 * roeU[1];
     const double l24 = gm1 / roeA2 * (-1.0);
     const double alpha_2 = l21 * deltaRho + l22 * deltaRhoU[0] +
@@ -187,7 +213,7 @@ void Hllem<EulerEquation, Larrouturou>::SolveRiemannProblem(
                         u_bar_delta_alpha_2 * squaredNormRoeU_half -
                         u_bar_delta_alpha_3 * roeU[iy];
     }
-    if constexpr (fub::euler::state_with_species<EulerEquation,
+    if constexpr (fub::euler::state_with_species<
                                                  Conservative>()) {
       const int n_species = w_hllem_.species.size();
       for (int i = 0; i < n_species; ++i) {
@@ -211,13 +237,36 @@ void Hllem<EulerEquation, Larrouturou>::SolveRiemannProblem(
         }
       }
     }
+    if constexpr (fub::euler::state_with_passive_scalars<Conservative>()) {
+      const int n_passive_scalars = w_hllem_.passive_scalars.size();
+      for (int i = 0; i < n_passive_scalars; ++i) {
+        const double rhoYL = left_.passive_scalars[i];
+        const double rhoYR = right_.passive_scalars[i];
+        const double YL = rhoYL / rhoL;
+        const double YR = rhoYR / rhoR;
+        if constexpr (Larrouturou) {
+          const int upwind = (u_bar > 0.0);
+          w_hllem_.passive_scalars[i] =
+              w_hllem_.density * (upwind * YL + (1 - upwind) * YR);
+        } else {
+          const double roeY = (sqRhoL * YL + sqRhoR * YR) / sqRhoSum;
+          const double deltaRhoY = rhoYR - rhoYL;
+          const double li1 = -roeY;
+          const double li4 = 1.0;
+          const double alpha_i = li1 * deltaRho + li4 * deltaRhoY;
+          w_hllem_.passive_scalars[i] = w_hlle_.passive_scalars[i] -
+                                        u_bar_delta_alpha_2 * roeY -
+                                        u_bar * delta * alpha_i;
+        }
+      }
+    }
   } else {
     static_assert(Dim == 3);
     const int ix = int(dir);
     const int iy = (ix + 1) % 3;
     const int iz = (iy + 1) % 3;
-    const double l21 = gm1 / roeA2 * (roeH - roeU.matrix().squaredNorm());
-    const double l22 = gm1 / roeA2 * roeU[0];
+    const double l21 = gm1 / roeA2 * (roeH - Msq * roeU.matrix().squaredNorm());
+    const double l22 = gm1 / roeA2 * Msq * roeU[0];
     const double l23 = gm1 / roeA2 * roeU[1];
     const double l24 = gm1 / roeA2 * roeU[2];
     const double l25 = gm1 / roeA2 * (-1.0);
@@ -260,7 +309,7 @@ void Hllem<EulerEquation, Larrouturou>::SolveRiemannProblem(
                         u_bar_delta * (alpha_2 * squaredNormRoeU_half +
                                        alpha_3 * roeU[iy] + alpha_4 * roeU[iz]);
     }
-    if constexpr (fub::euler::state_with_species<EulerEquation,
+    if constexpr (fub::euler::state_with_species<
                                                  Conservative>()) {
       const int n_species = w_hllem_.species.size();
       for (int i = 0; i < n_species; ++i) {
@@ -284,6 +333,29 @@ void Hllem<EulerEquation, Larrouturou>::SolveRiemannProblem(
         }
       }
     }
+    if constexpr (fub::euler::state_with_passive_scalars<Conservative>()) {
+      const int n_passive_scalars = w_hllem_.passive_scalars.size();
+      for (int i = 0; i < n_passive_scalars; ++i) {
+        const double rhoYL = left_.passive_scalars[i];
+        const double rhoYR = right_.passive_scalars[i];
+        const double YL = rhoYL / rhoL;
+        const double YR = rhoYR / rhoR;
+        if constexpr (Larrouturou) {
+          const int upwind = (u_bar > 0.0);
+          w_hllem_.passive_scalars[i] =
+              w_hllem_.density * (upwind * YL + (1 - upwind) * YR);
+        } else {
+          const double roeY = (sqRhoL * YL + sqRhoR * YR) / sqRhoSum;
+          const double deltaRhoY = rhoYR - rhoYL;
+          const double li1 = -roeY;
+          const double li4 = 1.0;
+          const double alpha_i = li1 * deltaRho + li4 * deltaRhoY;
+          w_hllem_.passive_scalars[i] = w_hlle_.passive_scalars[i] -
+                                u_bar_delta * alpha_2 * roeY -
+                                u_bar * delta * alpha_i;
+        }
+      }
+    }
   }
 
   if (0.0 < sL) {
@@ -297,13 +369,15 @@ void Hllem<EulerEquation, Larrouturou>::SolveRiemannProblem(
 }
 
 template <typename EulerEquation, bool Larrouturou>
-void Hllem<EulerEquation, Larrouturou>::ComputeNumericFlux(
+double Hllem<EulerEquation, Larrouturou>::ComputeNumericFlux(
     Conservative& flux, span<const Complete, 2> states, Duration /* dt */,
     double /* dx */, Direction dir) {
   static constexpr int Dim = EulerEquation::Rank();
   int d = static_cast<int>(dir);
   left_ = states[0];
   right_ = states[1];
+  const double Msq = euler::MaSq(equation_);
+  const double Minv = 1.0 / std::sqrt(Msq);
   const double rhoL = fub::euler::Density(equation_, left_);
   const double rhoR = fub::euler::Density(equation_, right_);
   [[maybe_unused]] Array<double, 1, Dim> vL_ =
@@ -323,8 +397,8 @@ void Hllem<EulerEquation, Larrouturou>::ComputeNumericFlux(
       left_.momentum[i] *= dim_mask[i];
       right_.momentum[i] *= dim_mask[i];
     }
-    eKinRL *= 0.5;
-    eKinRR *= 0.5;
+    eKinRL *= 0.5 * Msq;
+    eKinRR *= 0.5 * Msq;
     left_.energy -= rhoL * eKinRL;
     right_.energy -= rhoR * eKinRR;
   }
@@ -360,14 +434,14 @@ void Hllem<EulerEquation, Larrouturou>::ComputeNumericFlux(
   const double gammaR = fub::euler::Gamma(equation_, right_);
   const double roeGamma = (sqRhoL * gammaL + sqRhoR * gammaR) / sqRhoSum;
   const double gm1 = roeGamma - 1.0;
-  const double beta = std::sqrt(gm1 / (2 * roeGamma));
 
-  const double roeA2 = gm1 * (roeH - 0.5 * roeU.matrix().squaredNorm());
+  const double roeA2 = gm1 * (roeH - 0.5 * Msq * roeU.matrix().squaredNorm());
   const double roeA = std::sqrt(roeA2);
-  const double sL1 = uL - beta * aL;
-  const double sL2 = roeU0 - roeA;
-  const double sR1 = roeU0 + roeA;
-  const double sR2 = uR + beta * aR;
+  const double maxA = std::max(aL, aR);
+  const double sL1 = uL - maxA * Minv;
+  const double sL2 = roeU0 - roeA * Minv;
+  const double sR1 = roeU0 + roeA * Minv;
+  const double sR2 = uR + maxA * Minv;
 
   const double sL = std::min(sL1, sL2);
   const double sR = std::max(sR1, sR2);
@@ -384,7 +458,7 @@ void Hllem<EulerEquation, Larrouturou>::ComputeNumericFlux(
       },
       flux_hlle_, fluxL_, fluxR_, AsCons(left_), AsCons(right_));
 
-  const double squaredNormRoeU = roeU.matrix().squaredNorm();
+  const double squaredNormRoeU = Msq * roeU.matrix().squaredNorm();
   const double squaredNormRoeU_half = 0.5 * squaredNormRoeU;
   const double u_bar = 0.5 * (sR + sL);
   const double u_bar_abs = std::abs(u_bar);
@@ -396,8 +470,8 @@ void Hllem<EulerEquation, Larrouturou>::ComputeNumericFlux(
   const double deltaRhoE = rhoER - rhoEL;
 
   if constexpr (Dim == 1) {
-    const double l21 = gm1 / roeA2 * (roeH - roeU.matrix().squaredNorm());
-    const double l22 = gm1 / roeA2 * roeU[0];
+    const double l21 = gm1 / roeA2 * (roeH - Msq * roeU.matrix().squaredNorm());
+    const double l22 = gm1 / roeA2 * Msq * roeU[0];
     const double l23 = gm1 / roeA2 * (-1.0);
     const double alpha_2 =
         l21 * deltaRho + l22 * deltaRhoU[0] + l23 * deltaRhoE;
@@ -405,7 +479,7 @@ void Hllem<EulerEquation, Larrouturou>::ComputeNumericFlux(
     flux.density = flux_hlle_.density - b_delta_alpha_2 * 1.0;
     flux.momentum = flux_hlle_.momentum - b_delta_alpha_2 * roeU[0];
     flux.energy = flux_hlle_.energy - b_delta_alpha_2 * squaredNormRoeU_half;
-    if constexpr (fub::euler::state_with_species<EulerEquation,
+    if constexpr (fub::euler::state_with_species<
                                                  Conservative>()) {
       const int n_species = flux.species.size();
       for (int i = 0; i < n_species; ++i) {
@@ -430,11 +504,35 @@ void Hllem<EulerEquation, Larrouturou>::ComputeNumericFlux(
         }
       }
     }
+    if constexpr (fub::euler::state_with_passive_scalars<Conservative>()) {
+      const int n_passive_scalars = flux.passive_scalars.size();
+      for (int i = 0; i < n_passive_scalars; ++i) {
+        const double rhoYL = left_.passive_scalars[i];
+        const double rhoYR = right_.passive_scalars[i];
+        const double YL = rhoYL / rhoL;
+        const double YR = rhoYR / rhoR;
+        if constexpr (Larrouturou) {
+          const double f_rho = flux.density;
+          const int upwind = (f_rho > 0.0);
+          const double f_hllem = f_rho * (upwind * YL - (1 - upwind) * YR);
+          flux.passive_scalars[i] = f_hllem;
+        } else {
+          const double roeY = (sqRhoL * YL + sqRhoR * YR) / sqRhoSum;
+          const double deltaRhoY = rhoYR - rhoYL;
+          const double li1 = -roeY;
+          const double li4 = 1.0;
+          const double alpha_i = li1 * deltaRho + li4 * deltaRhoY;
+          const double b_delta_alpha_i = b * delta * alpha_i;
+          flux.passive_scalars[i] = flux_hlle_.passive_scalars[i] -
+                                    b_delta_alpha_2 * roeY - b_delta_alpha_i;
+        }
+      }
+    }
   } else if constexpr (Dim == 2) {
     const int ix = int(dir);
     const int iy = (ix + 1) % 2;
-    const double l21 = gm1 / roeA2 * (roeH - roeU.matrix().squaredNorm());
-    const double l22 = gm1 / roeA2 * roeU[0];
+    const double l21 = gm1 / roeA2 * (roeH - Msq * roeU.matrix().squaredNorm());
+    const double l22 = gm1 / roeA2 * Msq * roeU[0];
     const double l23 = gm1 / roeA2 * roeU[1];
     const double l24 = gm1 / roeA2 * (-1.0);
     const double alpha_2 = l21 * deltaRho + l22 * deltaRhoU[0] +
@@ -463,7 +561,7 @@ void Hllem<EulerEquation, Larrouturou>::ComputeNumericFlux(
       flux.energy = flux_hlle_.energy - b_delta_alpha_2 * squaredNormRoeU_half -
                     b_delta_alpha_3 * roeU[iy];
     }
-    if constexpr (fub::euler::state_with_species<EulerEquation,
+    if constexpr (fub::euler::state_with_species<
                                                  Conservative>()) {
       const int n_species = flux.species.size();
       for (int i = 0; i < n_species; ++i) {
@@ -488,13 +586,37 @@ void Hllem<EulerEquation, Larrouturou>::ComputeNumericFlux(
         }
       }
     }
+    if constexpr (fub::euler::state_with_passive_scalars<Conservative>()) {
+      const int n_passive_scalars = flux.passive_scalars.size();
+      for (int i = 0; i < n_passive_scalars; ++i) {
+        const double rhoYL = left_.passive_scalars[i];
+        const double rhoYR = right_.passive_scalars[i];
+        const double YL = rhoYL / rhoL;
+        const double YR = rhoYR / rhoR;
+        if constexpr (Larrouturou) {
+          const double f_rho = flux.density;
+          const int upwind = (f_rho > 0.0);
+          const double f_hllem = f_rho * (upwind * YL - (1 - upwind) * YR);
+          flux.passive_scalars[i] = f_hllem;
+        } else {
+          const double roeY = (sqRhoL * YL + sqRhoR * YR) / sqRhoSum;
+          const double deltaRhoY = rhoYR - rhoYL;
+          const double li1 = -roeY;
+          const double li4 = 1.0;
+          const double alpha_i = li1 * deltaRho + li4 * deltaRhoY;
+          const double b_delta_alpha_i = b * delta * alpha_i;
+          flux.passive_scalars[i] = flux_hlle_.passive_scalars[i] -
+                                    b_delta_alpha_2 * roeY - b_delta_alpha_i;
+        }
+      }
+    }
   } else {
     static_assert(Dim == 3);
     const int ix = int(dir);
     const int iy = (ix + 1) % 3;
     const int iz = (iy + 1) % 3;
-    const double l21 = gm1 / roeA2 * (roeH - roeU.matrix().squaredNorm());
-    const double l22 = gm1 / roeA2 * roeU[0];
+    const double l21 = gm1 / roeA2 * (roeH - Msq * roeU.matrix().squaredNorm());
+    const double l22 = gm1 / roeA2 * Msq * roeU[0];
     const double l23 = gm1 / roeA2 * roeU[1];
     const double l24 = gm1 / roeA2 * roeU[2];
     const double l25 = gm1 / roeA2 * (-1.0);
@@ -532,7 +654,7 @@ void Hllem<EulerEquation, Larrouturou>::ComputeNumericFlux(
       flux.energy = flux_hlle_.energy - b_delta_alpha_2 * squaredNormRoeU_half -
                     b_delta_alpha_3 * roeU[iy] - b_delta_alpha_4 * roeU[iz];
     }
-    if constexpr (fub::euler::state_with_species<EulerEquation,
+    if constexpr (fub::euler::state_with_species<
                                                  Conservative>()) {
       const int n_species = flux.species.size();
       for (int i = 0; i < n_species; ++i) {
@@ -557,17 +679,45 @@ void Hllem<EulerEquation, Larrouturou>::ComputeNumericFlux(
         }
       }
     }
+    if constexpr (fub::euler::state_with_passive_scalars<Conservative>()) {
+      const int n_passive_scalars = flux.passive_scalars.size();
+      for (int i = 0; i < n_passive_scalars; ++i) {
+        const double rhoYL = left_.passive_scalars[i];
+        const double rhoYR = right_.passive_scalars[i];
+        const double YL = rhoYL / rhoL;
+        const double YR = rhoYR / rhoR;
+        if constexpr (Larrouturou) {
+          const double f_rho = flux.density;
+          const int upwind = (f_rho > 0.0);
+          const double f_hllem = f_rho * (upwind * YL - (1 - upwind) * YR);
+          flux.passive_scalars[i] = f_hllem;
+        } else {
+          const double roeY = (sqRhoL * YL + sqRhoR * YR) / sqRhoSum;
+          const double deltaRhoY = rhoYR - rhoYL;
+          const double li1 = -roeY;
+          const double li4 = 1.0;
+          const double alpha_i = li1 * deltaRho + li4 * deltaRhoY;
+          const double b_delta_alpha_i = b * delta * alpha_i;
+          flux.passive_scalars[i] = flux_hlle_.passive_scalars[i] -
+                                    b_delta_alpha_2 * roeY - b_delta_alpha_i;
+        }
+      }
+    }
   }
+  const double p_star = (bR * pL - bL * pR) / db_positive;
+  return p_star;
 }
 
 template <typename EulerEquation, bool Larrouturou>
-void Hllem<EulerEquation, Larrouturou>::ComputeNumericFlux(
+Array1d Hllem<EulerEquation, Larrouturou>::ComputeNumericFlux(
     ConservativeArray& flux, span<const CompleteArray, 2> states,
     Duration /* dt */, double /* dx */, Direction dir) {
   static constexpr int Dim = EulerEquation::Rank();
 
   left_array_ = states[0];
   right_array_ = states[1];
+  const Array1d Msq = Array1d::Constant(euler::MaSq(equation_));
+  const Array1d Minv = 1.0 / Msq.sqrt();
   const Array1d rhoL = fub::euler::Density(equation_, left_array_);
   const Array1d rhoR = fub::euler::Density(equation_, right_array_);
   [[maybe_unused]] Array<double, Dim> vL_;
@@ -588,8 +738,8 @@ void Hllem<EulerEquation, Larrouturou>::ComputeNumericFlux(
       left_array_.momentum.row(i) *= dim_mask[i];
       right_array_.momentum.row(i) *= dim_mask[i];
     }
-    eKinRL *= 0.5;
-    eKinRR *= 0.5;
+    eKinRL *= 0.5 * Msq;
+    eKinRR *= 0.5 * Msq;
     left_array_.energy -= rhoL * eKinRL;
     right_array_.energy -= rhoR * eKinRR;
   }
@@ -627,21 +777,21 @@ void Hllem<EulerEquation, Larrouturou>::ComputeNumericFlux(
   for (int i = 0; i < Dim; ++i) {
     squaredNormRoeU += roeU.row(i) * roeU.row(i);
   }
+  squaredNormRoeU *= Msq;
   const Array1d squaredNormRoeU_half = 0.5 * squaredNormRoeU;
 
   const Array1d gammaL = fub::euler::Gamma(equation_, left_array_);
   const Array1d gammaR = fub::euler::Gamma(equation_, right_array_);
   const Array1d roeGamma = (sqRhoL * gammaL + sqRhoR * gammaR) / sqRhoSum;
   const Array1d gm1 = roeGamma - 1.0;
-  const Array1d beta = (gm1 / (2 * roeGamma)).sqrt();
 
   const Array1d roeA2 = gm1 * (roeH - squaredNormRoeU_half);
   const Array1d roeA = roeA2.sqrt();
-
-  const Array1d sL1 = uL.row(int(dir)) - beta * aL;
-  const Array1d sL2 = roeU.row(int(dir)) - roeA;
-  const Array1d sR1 = roeU.row(int(dir)) + roeA;
-  const Array1d sR2 = uR.row(int(dir)) + beta * aR;
+  const Array1d maxA = aL.max(aR);
+  const Array1d sL1 = uL.row(int(dir)) - maxA * Minv;
+  const Array1d sL2 = roeU.row(int(dir)) - roeA * Minv;
+  const Array1d sR1 = roeU.row(int(dir)) + roeA * Minv;
+  const Array1d sR2 = uR.row(int(dir)) + maxA * Minv;
 
   const Array1d sL = sL1.min(sL2);
   const Array1d sR = sR1.max(sR2);
@@ -674,7 +824,7 @@ void Hllem<EulerEquation, Larrouturou>::ComputeNumericFlux(
 
   if constexpr (Dim == 1) {
     const Array1d l21 = gm1_over_roeA2 * (roeH - squaredNormRoeU);
-    const Array1d l22 = gm1_over_roeA2 * roeU;
+    const Array1d l22 = gm1_over_roeA2 * Msq * roeU;
     const Array1d l23 = gm1_over_roeA2 * (-1.0);
     const Array1d alpha_2 = l21 * deltaRho + l22 * deltaRhoU + l23 * deltaRhoE;
     const Array1d b_delta_alpha_2 = b * delta * alpha_2;
@@ -683,7 +833,7 @@ void Hllem<EulerEquation, Larrouturou>::ComputeNumericFlux(
     flux.momentum = flux_hlle_array_.momentum - b_delta_alpha_2 * roeU;
     flux.energy =
         flux_hlle_array_.energy - b_delta_alpha_2 * squaredNormRoeU_half;
-    if constexpr (euler::state_with_species<EulerEquation, Conservative>()) {
+    if constexpr (euler::state_with_species<Conservative>()) {
       const int n_species = flux.species.rows();
       for (int i = 0; i < n_species; ++i) {
         const Array1d rhoYL = fub::euler::Species(equation_, left_array_, i);
@@ -706,17 +856,44 @@ void Hllem<EulerEquation, Larrouturou>::ComputeNumericFlux(
         }
       }
     }
+    if constexpr (euler::state_with_passive_scalars<Conservative>()) {
+      const int n_passive_scalars = flux.passive_scalars.rows();
+      for (int i = 0; i < n_passive_scalars; ++i) {
+        const Array1d rhoYL = left_array_.passive_scalars.row(i);
+        const Array1d rhoYR = right_array_.passive_scalars.row(i);
+        const Array1d YL = rhoYL / rhoL;
+        const Array1d YR = rhoYR / rhoR;
+        if constexpr (Larrouturou) {
+          const Array1d f_rho = flux.density;
+          const MaskArray upwind = (f_rho > 0.0);
+          const Array1d f_hllem = f_rho * upwind.select(YL, YR);
+          flux.passive_scalars.row(i) = f_hllem;
+        } else {
+          const Array1d roeY = (sqRhoL * YL + sqRhoR * YR) / sqRhoSum;
+          const Array1d deltaRhoY = rhoYR - rhoYL;
+          const Array1d li1 = -roeY;
+          const Array1d alpha_i = li1 * deltaRho + deltaRhoY;
+          const Array1d b_delta_alpha_i = b * delta * alpha_i;
+          flux.passive_scalars.row(i) =
+              flux_hlle_array_.passive_scalars.row(i) - b_delta_alpha_2 * roeY -
+              b_delta_alpha_i;
+        }
+      }
+    }
     FUB_ASSERT(!flux.density.isNaN().any());
     FUB_ASSERT(!flux.momentum.isNaN().any());
     FUB_ASSERT(!flux.energy.isNaN().any());
-    if constexpr (euler::state_with_species<EulerEquation, Conservative>()) {
+    if constexpr (euler::state_with_species<Conservative>()) {
       FUB_ASSERT(!flux.species.isNaN().any());
+    }
+    if constexpr (euler::state_with_species<Conservative>()) {
+      FUB_ASSERT(!flux.passive_scalars.isNaN().any());
     }
   } else if constexpr (Dim == 2) {
     const int ix = int(dir);
     const int iy = (ix == 0);
     const Array1d l21 = gm1_over_roeA2 * (roeH - squaredNormRoeU);
-    const Array1d l22 = gm1_over_roeA2 * roeU.row(0);
+    const Array1d l22 = gm1_over_roeA2 * Msq * roeU.row(0);
     const Array1d l23 = gm1_over_roeA2 * roeU.row(1);
     const Array1d l24 = -gm1_over_roeA2;
     const Array1d alpha_2 = l21 * deltaRho + l22 * deltaRhoU.row(0) +
@@ -732,8 +909,8 @@ void Hllem<EulerEquation, Larrouturou>::ComputeNumericFlux(
           flux.density * upwind.select(vL_.row(iy), vR_.row(iy));
       const Array1d f_hllem_rhoE = flux.density * upwind.select(eKinRL, eKinRR);
       flux.momentum.row(iy) = f_hllem_rhov;
-      flux.energy = flux_hlle_array_.energy - b_delta_alpha_2 * squaredNormRoeU_half +
-                    f_hllem_rhoE;
+      flux.energy = flux_hlle_array_.energy -
+                    b_delta_alpha_2 * squaredNormRoeU_half + f_hllem_rhoE;
     } else {
       const Array1d l31 = -roeU.row(iy);
       const Array1d alpha_3 = l31 * deltaRho + deltaRhoU.row(iy);
@@ -744,7 +921,7 @@ void Hllem<EulerEquation, Larrouturou>::ComputeNumericFlux(
                     b_delta_alpha_2 * squaredNormRoeU_half -
                     b_delta_alpha_3 * roeU.row(iy);
     }
-    if constexpr (euler::state_with_species<EulerEquation, Conservative>()) {
+    if constexpr (euler::state_with_species<Conservative>()) {
       const int n_species = flux.species.rows();
       for (int i = 0; i < n_species; ++i) {
         const Array1d rhoYL = fub::euler::Species(equation_, left_array_, i);
@@ -770,13 +947,37 @@ void Hllem<EulerEquation, Larrouturou>::ComputeNumericFlux(
         }
       }
     }
+    if constexpr (euler::state_with_passive_scalars<Conservative>()) {
+      const int n_passive_scalars = flux.passive_scalars.rows();
+      for (int i = 0; i < n_passive_scalars; ++i) {
+        const Array1d rhoYL = left_array_.passive_scalars.row(i);
+        const Array1d rhoYR = right_array_.passive_scalars.row(i);
+        const Array1d YL = rhoYL / rhoL;
+        const Array1d YR = rhoYR / rhoR;
+        if constexpr (Larrouturou) {
+          const Array1d f_rho = flux.density;
+          const MaskArray upwind = (f_rho > 0.0);
+          const Array1d f_hllem = f_rho * upwind.select(YL, YR);
+          flux.passive_scalars.row(i) = f_hllem;
+        } else {
+          const Array1d roeY = (sqRhoL * YL + sqRhoR * YR) / sqRhoSum;
+          const Array1d deltaRhoY = rhoYR - rhoYL;
+          const Array1d li1 = -roeY;
+          const Array1d alpha_i = li1 * deltaRho + deltaRhoY;
+          const Array1d b_delta_alpha_i = b * delta * alpha_i;
+          flux.passive_scalars.row(i) =
+              flux_hlle_array_.passive_scalars.row(i) - b_delta_alpha_2 * roeY -
+              b_delta_alpha_i;
+        }
+      }
+    }
   } else {
     static_assert(Dim == 3);
     const int ix = int(dir);
     const int iy = (ix + 1) % 3;
     const int iz = (iy + 1) % 3;
     const Array1d l21 = gm1_over_roeA2 * (roeH - squaredNormRoeU);
-    const Array1d l22 = gm1_over_roeA2 * roeU.row(0);
+    const Array1d l22 = gm1_over_roeA2 * Msq * roeU.row(0);
     const Array1d l23 = gm1_over_roeA2 * roeU.row(1);
     const Array1d l24 = gm1_over_roeA2 * roeU.row(2);
     const Array1d l25 = -gm1_over_roeA2;
@@ -799,8 +1000,8 @@ void Hllem<EulerEquation, Larrouturou>::ComputeNumericFlux(
       const Array1d f_hllem_rhoE = flux.density * upwind.select(eKinRL, eKinRR);
       flux.momentum.row(iy) = f_hllem_rhov;
       flux.momentum.row(iz) = f_hllem_rhow;
-      flux.energy = flux_hlle_array_.energy - b_delta_alpha_2 * squaredNormRoeU_half +
-                    f_hllem_rhoE;
+      flux.energy = flux_hlle_array_.energy -
+                    b_delta_alpha_2 * squaredNormRoeU_half + f_hllem_rhoE;
     } else {
       const Array1d l31 = -roeU.row(iy);
       const Array1d l41 = -roeU.row(iz);
@@ -817,7 +1018,7 @@ void Hllem<EulerEquation, Larrouturou>::ComputeNumericFlux(
           b_delta_alpha_3 * roeU.row(iy) - b_delta_alpha_4 * roeU.row(iz);
     }
 
-    if constexpr (euler::state_with_species<EulerEquation, Conservative>()) {
+    if constexpr (euler::state_with_species<Conservative>()) {
       const int n_species = flux.species.rows();
       for (int i = 0; i < n_species; ++i) {
         const Array1d rhoYL = fub::euler::Species(equation_, left_array_, i);
@@ -840,7 +1041,34 @@ void Hllem<EulerEquation, Larrouturou>::ComputeNumericFlux(
         }
       }
     }
+    if constexpr (euler::state_with_passive_scalars<Conservative>()) {
+      const int n_passive_scalars = flux.passive_scalars.rows();
+      for (int i = 0; i < n_passive_scalars; ++i) {
+        const Array1d rhoYL = left_array_.passive_scalars.row(i);
+        const Array1d rhoYR = right_array_.passive_scalars.row(i);
+        const Array1d YL = rhoYL / rhoL;
+        const Array1d YR = rhoYR / rhoR;
+        if constexpr (Larrouturou) {
+          const Array1d f_rho = flux.density;
+          const MaskArray upwind = (f_rho > 0.0);
+          const Array1d f_hllem = f_rho * upwind.select(YL, YR);
+          flux.passive_scalars.row(i) = f_hllem;
+        } else {
+          const Array1d roeY = (sqRhoL * YL + sqRhoR * YR) / sqRhoSum;
+          const Array1d deltaRhoY = rhoYR - rhoYL;
+          const Array1d li1 = -roeY;
+          const Array1d alpha_i = li1 * deltaRho + deltaRhoY;
+          const Array1d b_delta_alpha_i = b * delta * alpha_i;
+          flux.passive_scalars.row(i) =
+              flux_hlle_array_.passive_scalars.row(i) - b_delta_alpha_2 * roeY -
+              b_delta_alpha_i;
+        }
+      }
+    }
   }
+
+  const Array1d p_star = (bR * pL - bL * pR) / db_positive;
+  return p_star;
 }
 
 template <typename EulerEquation, bool Larrouturou>
@@ -856,8 +1084,11 @@ void Hllem<EulerEquation, Larrouturou>::ComputeNumericFlux(
   FUB_ASSERT(!flux.density.isNaN().any());
   FUB_ASSERT(!flux.momentum.isNaN().any());
   FUB_ASSERT(!flux.energy.isNaN().any());
-  if constexpr (euler::state_with_species<EulerEquation, Conservative>()) {
+  if constexpr (euler::state_with_species<Conservative>()) {
     FUB_ASSERT(!flux.species.isNaN().any());
+  }
+  if constexpr (euler::state_with_passive_scalars<Conservative>()) {
+    FUB_ASSERT(!flux.passive_scalars.isNaN().any());
   }
 }
 
@@ -867,9 +1098,9 @@ double Hllem<EulerEquation, Larrouturou>::ComputeStableDt(
   static constexpr int Dim = EulerEquation::Rank();
   const Complete& left = states[0];
   const Complete& right = states[1];
-
+  const double Msq = euler::MaSq(equation_);
+  const double Minv = 1.0 / std::sqrt(Msq);
   const double gm1 = equation_.gamma - 1.0;
-  const double beta = gm1 / (2 * equation_.gamma);
 
   // Compute Einfeldt signals velocities
 
@@ -898,12 +1129,13 @@ double Hllem<EulerEquation, Larrouturou>::ComputeStableDt(
   Array<double, 1, Dim> roeU = (sqRhoL * vL + sqRhoR * vR) / sqRhoSum;
   const double roeU0 = roeU[d];
   const double roeH = (sqRhoL * hL + sqRhoR * hR) / sqRhoSum;
-  const double roeA2 = gm1 * (roeH - 0.5 * roeU.matrix().squaredNorm());
+  const double roeA2 = gm1 * (roeH - 0.5 * Msq * roeU.matrix().squaredNorm());
   const double roeA = std::sqrt(roeA2);
-  const double sL1 = uL - beta * aL;
-  const double sL2 = roeU0 - roeA;
-  const double sR1 = roeU0 + roeA;
-  const double sR2 = uR + beta * aR;
+  const double maxA = std::max(aL, aR);
+  const double sL1 = uL - maxA * Minv;
+  const double sL2 = roeU0 - roeA * Minv;
+  const double sR1 = roeU0 + roeA * Minv;
+  const double sR2 = uR + maxA * Minv;
 
   const double sL = std::min(sL1, sL2);
   const double sR = std::max(sR1, sR2);
@@ -925,8 +1157,8 @@ Array1d Hllem<EulerEquation, Larrouturou>::ComputeStableDt(
   const CompleteArray& right = states[1];
 
   const Array1d gm1 = (equation_.gamma_array_ - Array1d::Constant(1.0));
-  const Array1d beta = gm1 / (2 * equation_.gamma_array_);
-
+  const Array1d Msq = Array1d::Constant(euler::MaSq(equation_));
+  const Array1d Minv = 1.0 / Msq.sqrt();
   // Compute Einfeldt signals velocities
 
   const Array1d rhoL = left.density;
@@ -959,15 +1191,17 @@ Array1d Hllem<EulerEquation, Larrouturou>::ComputeStableDt(
   for (int i = 0; i < Dim; ++i) {
     squaredNormRoeU += roeU.row(i) * roeU.row(i);
   }
+  squaredNormRoeU *= Msq;
   const Array1d squaredNormRoeU_half = 0.5 * squaredNormRoeU;
 
   const Array1d roeA2 = gm1 * (roeH - squaredNormRoeU_half);
   const Array1d roeA = roeA2.sqrt();
+  const Array1d maxA = aL.max(aR);
 
-  const Array1d sL1 = uL.row(int(dir)) - beta * aL;
-  const Array1d sL2 = roeU.row(int(dir)) - roeA;
-  const Array1d sR1 = roeU.row(int(dir)) + roeA;
-  const Array1d sR2 = uR.row(int(dir)) + beta * aR;
+  const Array1d sL1 = uL.row(int(dir)) - maxA * Minv;
+  const Array1d sL2 = roeU.row(int(dir)) - roeA * Minv;
+  const Array1d sR1 = roeU.row(int(dir)) + roeA * Minv;
+  const Array1d sR2 = uR.row(int(dir)) + maxA * Minv;
 
   const Array1d sL = sL1.min(sL2);
   const Array1d sR = sR1.max(sR2);
@@ -992,7 +1226,8 @@ Array1d Hllem<EulerEquation, Larrouturou>::ComputeStableDt(
   MaskArray face_mask = face_fraction > 0.0;
 
   const Array1d gm1 = (equation_.gamma_array_ - Array1d::Constant(1.0));
-  const Array1d beta = gm1 / (2 * equation_.gamma_array_);
+  const Array1d Msq = Array1d::Constant(euler::MaSq(equation_));
+  const Array1d Minv = 1.0 / Msq.sqrt();
 
   // Compute Einfeldt signals velocities
 
@@ -1029,15 +1264,17 @@ Array1d Hllem<EulerEquation, Larrouturou>::ComputeStableDt(
   for (int i = 0; i < Dim; ++i) {
     squaredNormRoeU += roeU.row(i) * roeU.row(i);
   }
+  squaredNormRoeU *= Msq;
   const Array1d squaredNormRoeU_half = 0.5 * squaredNormRoeU;
 
   const Array1d roeA2 = gm1 * (roeH - squaredNormRoeU_half);
   const Array1d roeA = roeA2.sqrt();
+  const Array1d maxA = aL.max(aR);
 
-  const Array1d sL1 = uL.row(int(dir)) - beta * aL;
-  const Array1d sL2 = roeU.row(int(dir)) - roeA;
-  const Array1d sR1 = roeU.row(int(dir)) + roeA;
-  const Array1d sR2 = uR.row(int(dir)) + beta * aR;
+  const Array1d sL1 = uL.row(int(dir)) - maxA * Minv;
+  const Array1d sL2 = roeU.row(int(dir)) - roeA * Minv;
+  const Array1d sR1 = roeU.row(int(dir)) + roeA * Minv;
+  const Array1d sR2 = uR.row(int(dir)) + maxA * Minv;
 
   const Array1d sL = sL1.min(sL2);
   const Array1d sR = sR1.max(sR2);

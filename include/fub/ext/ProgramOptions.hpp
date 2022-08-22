@@ -18,13 +18,15 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 
-/// \file This file declares a function to parse program options from a python
+/// \file
+/// \brief This file declares a function to parse program options from a python
 /// script file.
 
 #ifndef FUB_EXT_PROGRAM_OPTIONS_HPP
 #define FUB_EXT_PROGRAM_OPTIONS_HPP
 
 #include "fub/Direction.hpp"
+#include "fub/Duration.hpp"
 
 #include <map>
 #include <optional>
@@ -58,10 +60,17 @@ template <>
 Direction GetOptionOr(const ProgramOptions& map, const std::string& name,
                       const Direction& value);
 
+template <>
+Duration GetOptionOr(const ProgramOptions& map, const std::string& name,
+              const Duration& value);
+
 ProgramOptions GetOptions(const ProgramOptions& options,
                           const std::string& name);
 
 std::optional<ProgramOptions> ParseCommandLine(int argc, char** argv);
+
+#define FUB_GET_OPTION_VAR(options, var) var = GetOptionOr(options, #var, var)
+#define FUB_PRINT_OPTION_VAR(log, var) BOOST_LOG(log) << "  - " #var " = " << var;
 
 } // namespace fub
 

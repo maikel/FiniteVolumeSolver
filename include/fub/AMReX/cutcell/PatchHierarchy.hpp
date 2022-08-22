@@ -48,6 +48,11 @@ class DebugStorage;
 
 namespace fub::amrex::cutcell {
 
+enum class GeometryDetails {
+  standard,
+  with_hgrid
+};
+
 /// \ingroup PatchHierarchy
 /// This class holds state data arrays for each refinement level of a patch
 /// hierarchy.
@@ -81,10 +86,14 @@ struct PatchLevel : ::fub::amrex::PatchLevel {
   /// \param[in] factory  the boundary informations for cut cells.
   PatchLevel(int level, Duration tp, const ::amrex::BoxArray& ba,
              const ::amrex::DistributionMapping& dm, int n_components,
-             std::shared_ptr<::amrex::EBFArrayBoxFactory> factory, int ngrow);
+             const ::amrex::MFInfo& mf_info, const ::amrex::Geometry& geom,
+             std::shared_ptr<::amrex::EBFArrayBoxFactory> factory, int ngrow,
+             GeometryDetails hgrid = GeometryDetails::standard);
 
   using MultiCutFabs =
       std::array<std::shared_ptr<::amrex::MultiCutFab>, AMREX_SPACEDIM>;
+
+  CutCellData<AMREX_SPACEDIM> GetCutCellData(const ::amrex::MFIter& mfi) const;
 
   /// \brief This stores the EB factory for this refinement level.
   std::shared_ptr<::amrex::EBFArrayBoxFactory> factory;
@@ -104,6 +113,12 @@ struct PatchLevel : ::fub::amrex::PatchLevel {
   /// \brief Store doubly shielded face fractions for all faces which touch a
   /// cut cell.
   MultiCutFabs doubly_shielded;
+
+  /// \brief If we use a h-grid based method we need to compute the integral of
+  /// the h-grid boxes for each direction.
+  MultiCutFabs h_grid_integration_points;
+
+  std::shared_ptr<::amrex::MultiCutFab> h_grid_total_inner_integration_points;
 };
 
 /// \ingroup PatchHierarchy
@@ -119,6 +134,8 @@ struct PatchHierarchyOptions : public ::fub::amrex::PatchHierarchyOptions {
         options, "cutcell_load_balance_weight", cutcell_load_balance_weight);
     remove_covered_grids =
         GetOptionOr(options, "remove_covered_grids", remove_covered_grids);
+    hgrid_details =
+        static_cast<GeometryDetails>(GetOptionOr(options, "hgrid_details", false));
   }
 
   template <typename Log> void Print(Log& log) {
@@ -127,12 +144,14 @@ struct PatchHierarchyOptions : public ::fub::amrex::PatchHierarchyOptions {
     BOOST_LOG(log) << " - cutcell_load_balance_weight = "
                    << cutcell_load_balance_weight;
     BOOST_LOG(log) << " - remove_covered_grids = " << remove_covered_grids;
+    BOOST_LOG(log) << " - hgrid_details = " << (hgrid_details == GeometryDetails::standard ? "false" : "true");
   }
 
   std::vector<const ::amrex::EB2::IndexSpace*> index_spaces{};
   int ngrow_eb_level_set{5};
   double cutcell_load_balance_weight{6.0};
   bool remove_covered_grids{true};
+  GeometryDetails hgrid_details{GeometryDetails::standard};
 };
 
 /// \ingroup PatchHierarchy
@@ -195,9 +214,13 @@ public:
   ///
   /// \param[in] level  the fine refinement level number
   /// \param[in] dir  the direction
+  /// \param[in] mfi the multifab iterator
   int GetRatioToCoarserLevel(int level, Direction dir) const;
 
   ::amrex::IntVect GetRatioToCoarserLevel(int level) const;
+
+  void SetArena(::amrex::Arena* arena) { mf_info_.SetArena(arena); }
+  const ::amrex::MFInfo& GetMFInfo() const noexcept { return mf_info_; }
 
   const ::amrex::Geometry& GetGeometry(int level) const;
 
@@ -214,6 +237,10 @@ public:
   /// \brief Returns a shared pointer to the debug storage.
   [[nodiscard]] const std::shared_ptr<DebugStorage>&
   GetDebugStorage() const noexcept;
+    
+  fub::Duration const GetStabledt() const noexcept;
+
+  void SetStabledt(fub::Duration dt);
 
   /// @}
 
@@ -223,8 +250,10 @@ private:
   PatchHierarchyOptions options_;
   std::vector<PatchLevel> patch_level_;
   std::vector<::amrex::Geometry> patch_level_geometry_;
+  ::amrex::MFInfo mf_info_{};
   std::shared_ptr<CounterRegistry> registry_;
   std::shared_ptr<DebugStorage> debug_storage_;
+  fub::Duration stable_dt_{};
 };
 
 template <typename Equation>
@@ -241,11 +270,22 @@ void WritePlotFile(const std::string& plotfilename, const PatchHierarchy& hier,
   FUB_ASSERT(nlevels >= 0);
   std::size_t size = static_cast<std::size_t>(nlevels);
   ::amrex::Vector<const ::amrex::MultiFab*> mf(size);
+  ::amrex::Vector<::amrex::MultiFab> mf_holder(size);
   ::amrex::Vector<::amrex::Geometry> geoms(size);
   ::amrex::Vector<int> level_steps(size);
   ::amrex::Vector<::amrex::IntVect> ref_ratio(size - 1);
   for (std::size_t i = 0; i < size; ++i) {
-    mf[i] = &hier.GetPatchLevel(static_cast<int>(i)).data;
+    const ::amrex::MultiFab& data =
+        hier.GetPatchLevel(static_cast<int>(i)).data;
+    auto&& normals_cutmf = hier.GetEmbeddedBoundary(i)->getBndryNormal();
+    ::amrex::MultiFab normals = normals_cutmf.ToMultiFab(0.0, 0.0);
+    ::amrex::MultiFab& new_mf = mf_holder.emplace_back(
+        data.boxArray(), data.DistributionMap(), data.nComp() + normals.nComp(),
+        0, ::amrex::MFInfo(), data.Factory());
+    ::amrex::MultiFab::Copy(new_mf, data, 0, 0, data.nComp(), 0);
+    ::amrex::MultiFab::Copy(new_mf, normals, 0, data.nComp(), normals.nComp(),
+                            0);
+    mf[i] = &new_mf;
     geoms[i] = hier.GetGeometry(static_cast<int>(i));
     level_steps[i] = static_cast<int>(hier.GetCycles(static_cast<int>(i)));
   }
@@ -269,6 +309,10 @@ void WritePlotFile(const std::string& plotfilename, const PatchHierarchy& hier,
       }
     }
   });
+  const char* dim_names[] = {"X", "Y", "Z"};
+  for (int d = 0; d < AMREX_SPACEDIM; ++d) {
+    varnames.push_back(fmt::format("Boundary_{}", dim_names[d]));
+  }
   ::amrex::EB_WriteMultiLevelPlotfile(plotfilename, nlevels, mf, varnames,
                                       geoms, time_point, level_steps,
                                       ref_ratio);
@@ -282,12 +326,23 @@ void WritePlotFile(const std::string& plotfilename, const PatchHierarchy& hier,
   const double time_point = hier.GetTimePoint().count();
   FUB_ASSERT(nlevels >= 0);
   std::size_t size = static_cast<std::size_t>(nlevels);
+  ::amrex::Vector<::amrex::MultiFab> mf_holder(size);
   ::amrex::Vector<const ::amrex::MultiFab*> mf(size);
   ::amrex::Vector<::amrex::Geometry> geoms(size);
   ::amrex::Vector<int> level_steps(size);
   ::amrex::Vector<::amrex::IntVect> ref_ratio(size - 1);
   for (std::size_t i = 0; i < size; ++i) {
-    mf[i] = &hier.GetPatchLevel(static_cast<int>(i)).data;
+    const ::amrex::MultiFab& data =
+        hier.GetPatchLevel(static_cast<int>(i)).data;
+    auto&& normals_cutmf = hier.GetEmbeddedBoundary(i)->getBndryNormal();
+    ::amrex::MultiFab normals = normals_cutmf.ToMultiFab(0.0, 0.0);
+    ::amrex::MultiFab& new_mf = mf_holder.emplace_back(
+        data.boxArray(), data.DistributionMap(), data.nComp() + normals.nComp(),
+        0, ::amrex::MFInfo(), data.Factory());
+    ::amrex::MultiFab::Copy(new_mf, data, 0, 0, data.nComp(), 0);
+    ::amrex::MultiFab::Copy(new_mf, normals, 0, data.nComp(), normals.nComp(),
+                            0);
+    mf[i] = &new_mf;
     geoms[i] = hier.GetGeometry(static_cast<int>(i));
     level_steps[i] = static_cast<int>(hier.GetCycles(static_cast<int>(i)));
   }
@@ -316,6 +371,10 @@ void WritePlotFile(const std::string& plotfilename, const PatchHierarchy& hier,
       }
     }
   });
+  const char* dim_names[] = {"X", "Y", "Z"};
+  for (int d = 0; d < AMREX_SPACEDIM; ++d) {
+    varnames.push_back(fmt::format("Boundary_{}", dim_names[d]));
+  }
   ::amrex::EB_WriteMultiLevelPlotfile(plotfilename, nlevels, mf, varnames,
                                       geoms, time_point, level_steps,
                                       ref_ratio);

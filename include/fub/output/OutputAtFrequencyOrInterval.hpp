@@ -60,7 +60,7 @@ public:
         Duration dt(intervals_[i].count() -
                     std::fmod(time_point.count(), intervals_[i].count()));
         dt += smallest_time_step_size_;
-        next_output_time = std::min(next_output_time, time_point + dt);
+        next_output_time = std::min<Duration>(next_output_time, time_point + dt);
       }
     }
     return next_output_time;
@@ -99,7 +99,7 @@ public:
 
 protected:
   std::vector<std::ptrdiff_t> frequencies_{};
-  std::vector<fub::Duration> intervals_{};
+  std::vector<Duration> intervals_{};
   Duration smallest_time_step_size_{1e-12};
 };
 

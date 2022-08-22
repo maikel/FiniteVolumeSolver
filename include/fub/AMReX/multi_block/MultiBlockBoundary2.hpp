@@ -21,7 +21,10 @@
 #ifndef FUB_AMREX_MULTI_BLOCK_BOUNDARY2_HPP
 #define FUB_AMREX_MULTI_BLOCK_BOUNDARY2_HPP
 
+#include "fub/AMReX/IntegratorContext.hpp"
+#include "fub/AMReX/cutcell/IntegratorContext.hpp"
 #include "fub/AMReX/multi_block/MultiBlockBoundary.hpp"
+#include "fub/equations/EulerEquation.hpp"
 
 #include "fub/Direction.hpp"
 #include "fub/Duration.hpp"
@@ -39,9 +42,12 @@ class MultiBlockGriddingAlgorithm2;
 /// \ingroup BoundaryCondition
 ///
 struct MultiBlockBoundaryBase {
-  virtual void
-  FillTubeGhostLayer(::amrex::FArrayBox& tube_ghost_data,
-                     const ::amrex::FArrayBox& plenum_mirror_data) = 0;
+  virtual ~MultiBlockBoundaryBase() = default;
+
+  virtual void FillTubeGhostLayer(
+      ::amrex::FArrayBox& tube_ghost_data,
+      const ::amrex::FArrayBox& plenum_mirror_data,
+      const Eigen::Matrix<double, AMREX_SPACEDIM, 1>& normal) = 0;
   virtual void
   FillPlenumGhostLayer(::amrex::FArrayBox& plenum_ghost_data,
                        const ::amrex::FArrayBox& tube_mirror_data) = 0;
@@ -51,25 +57,26 @@ struct MultiBlockBoundaryBase {
 
 template <typename Boundary>
 struct MultiBlockBoundaryWrapper : public MultiBlockBoundaryBase {
-  MultiBlockBoundaryWrapper(const Boundary& impl) : impl_(std::make_unique<Boundary>(impl)) {}
-  MultiBlockBoundaryWrapper(Boundary&& impl) : impl_(std::make_unique<Boundary>(std::move(impl))) {}
+  MultiBlockBoundaryWrapper(const Boundary& impl) : impl_(impl) {}
+  MultiBlockBoundaryWrapper(Boundary&& impl) : impl_(std::move(impl)) {}
 
   std::unique_ptr<MultiBlockBoundaryBase> Clone() const override final {
-    return std::make_unique<MultiBlockBoundaryWrapper>(*impl_);
+    return std::make_unique<MultiBlockBoundaryWrapper>(impl_);
   }
 
   void FillTubeGhostLayer(
       ::amrex::FArrayBox& tube_ghost_data,
-      const ::amrex::FArrayBox& plenum_mirror_data) override final {
-    impl_->FillTubeGhostLayer(tube_ghost_data, plenum_mirror_data);
+      const ::amrex::FArrayBox& plenum_mirror_data,
+      const Eigen::Matrix<double, AMREX_SPACEDIM, 1>& normal) override final {
+    impl_.FillTubeGhostLayer(tube_ghost_data, plenum_mirror_data, normal);
   }
   void FillPlenumGhostLayer(
       ::amrex::FArrayBox& plenum_ghost_data,
       const ::amrex::FArrayBox& tube_mirror_data) override final {
-    impl_->FillPlenumGhostLayer(plenum_ghost_data, tube_mirror_data);
+    impl_.FillPlenumGhostLayer(plenum_ghost_data, tube_mirror_data);
   }
 
-  std::unique_ptr<Boundary> impl_;
+  Boundary impl_;
 };
 
 /// \ingroup BoundaryCondition
@@ -88,13 +95,27 @@ public:
       : impl_(std::make_unique<MultiBlockBoundaryWrapper<Boundary>>(
             std::move(boundary))),
         dir_{connection.direction}, side_{connection.side}, level_{level},
-        gcw_{gcw} {
+        gcw_{gcw}, connection_{connection} {
     Initialize(gridding, connection, gcw, level);
   }
 
   AnyMultiBlockBoundary(const AnyMultiBlockBoundary& other);
 
+  void PreAdvanceHierarchy(const MultiBlockGriddingAlgorithm2& grid);
+
   /// Precompute Boundary states for each domain.
+  ///
+  /// Subsequent calls to FillBoundary will use these computed boundary states.
+  ///
+  /// \param[in] plenum  The higher dimensional patch hierarchy with geometry
+  /// information. States here will be conservatively averaged and projected
+  /// onto a one-dimensional space.
+  ///
+  /// \param[in] tube The low dimensional tube data.
+  void ComputeBoundaryData(const cutcell::PatchHierarchy& plenum,
+                           const PatchHierarchy& tube);
+
+  /// Precompute Boundary states for each domain using the scratch.
   ///
   /// Subsequent calls to FillBoundary will use these computed boundary states.
   ///
@@ -103,8 +124,14 @@ public:
   /// onto a one-dimesnional space.
   ///
   /// \param[in] tube The low dimensional tube data.
-  void ComputeBoundaryData(const cutcell::PatchHierarchy& plenum,
-                           const PatchHierarchy& tube);
+  void ComputeBoundaryData(const cutcell::IntegratorContext& plenum,
+                           const IntegratorContext& tube);
+
+  void ComputeBoundaryDataForTube(const cutcell::IntegratorContext& plenum,
+                                  const IntegratorContext& tube);
+
+  void ComputeBoundaryDataForPlenum(const cutcell::IntegratorContext& plenum,
+                                    const IntegratorContext& tube);
 
   /// Assuming that mf represents a MultiFab living in the higher dimensional
   /// plenum simulation its ghost layer will be filled with data from the tube
@@ -133,6 +160,9 @@ public:
     }
   }
 
+  const ::amrex::FArrayBox* GetTubeMirrorData() const noexcept;
+  const ::amrex::FArrayBox* GetTubeGhostData() const noexcept;
+
 private:
   void Initialize(const MultiBlockGriddingAlgorithm2& gridding,
                   const BlockConnection& connection, int gcw, int level);
@@ -152,6 +182,7 @@ private:
   int side_{};
   int level_{};
   int gcw_{};
+  BlockConnection connection_{};
 };
 
 template <typename TubeEquation, typename PlenumEquation>
@@ -163,21 +194,35 @@ void ReduceStateDimension(TubeEquation& tube_equation,
   for (int i = 0; i < dest.momentum.size(); ++i) {
     dest.momentum[i] = src.momentum[i];
   }
-  dest.species = src.species;
+  if constexpr (euler::state_with_species<Complete<TubeEquation>>() &&
+                euler::state_with_species<Complete<PlenumEquation>>()) {
+    dest.species = src.species;
+  }
+  if constexpr (euler::state_with_passive_scalars<Complete<TubeEquation>>() &&
+                euler::state_with_passive_scalars<Complete<PlenumEquation>>()) {
+    dest.passive_scalars = src.passive_scalars;
+  }
   dest.energy = src.energy;
   CompleteFromCons(tube_equation, dest, AsCons(dest));
 }
 
 template <typename PlenumEquation, typename TubeEquation>
-void EmbedState(PlenumEquation& plenum_equation, Complete<PlenumEquation>& dest,
+void EmbedState(PlenumEquation& plenum_equation, nodeduce_t<Complete<PlenumEquation>&> dest,
                 TubeEquation& /* tube_equation */,
-                const Conservative<TubeEquation>& src) {
+                nodeduce_t<const Conservative<TubeEquation>&> src) {
   dest.density = src.density;
   dest.momentum.setZero();
   for (int i = 0; i < src.momentum.size(); ++i) {
     dest.momentum[i] = src.momentum[i];
   }
-  dest.species = src.species;
+  if constexpr (euler::state_with_species<Complete<TubeEquation>>() &&
+                euler::state_with_species<Complete<PlenumEquation>>()) {
+    dest.species = src.species;
+  }
+  if constexpr (euler::state_with_passive_scalars<Complete<TubeEquation>>() &&
+                euler::state_with_passive_scalars<Complete<PlenumEquation>>()) {
+    dest.passive_scalars = src.passive_scalars;
+  }
   dest.energy = src.energy;
   CompleteFromCons(plenum_equation, dest, AsCons(dest));
 }
@@ -197,33 +242,45 @@ struct MultiBlockBoundary2 {
   TubeEquation tube_equation_;
   PlenumEquation plenum_equation_;
 
-  void FillTubeGhostLayer(
-      ::amrex::FArrayBox& tube_ghost_data,
-      const ::amrex::FArrayBox& plenum_mirror_data) {
+  void
+  FillTubeGhostLayer(::amrex::FArrayBox& tube_ghost_data,
+                     const ::amrex::FArrayBox& plenum_mirror_data,
+                     const Eigen::Matrix<double, AMREX_SPACEDIM, 1>& normal) {
     BasicView cons_states = MakeView<const Conservative<PlenumEquation>>(
         plenum_mirror_data, plenum_equation_);
     BasicView complete_states =
         MakeView<Complete<TubeEquation>>(tube_ghost_data, tube_equation_);
     Conservative<PlenumEquation> cons(plenum_equation_);
+    Conservative<PlenumEquation> rotated(plenum_equation_);
     Complete<TubeEquation> complete(tube_equation_);
     const std::ptrdiff_t i0 = plenum_mirror_data.box().smallEnd(0);
     const std::ptrdiff_t j0 = tube_ghost_data.box().smallEnd(0);
     ForEachIndex(Box<0>(complete_states), [&](std::ptrdiff_t j) {
       const std::ptrdiff_t k = j - j0;
       const std::ptrdiff_t i = i0 + k;
-      Load(cons, cons_states, {i});
+      if (normal.squaredNorm() == 0.0) {
+        Load(cons, cons_states, {i});
+      } else {
+        Load(cons, cons_states, {0});
+      }
       if (cons.density > 0.0) {
-        ReduceStateDimension(tube_equation_, complete, plenum_equation_, cons);
+        if (normal.squaredNorm() > 0.0) {
+          const Eigen::Matrix<double, AMREX_SPACEDIM, 1> unit =
+              UnitVector<AMREX_SPACEDIM>(Direction::X);
+          Rotate(rotated, cons, MakeRotation(normal, unit), plenum_equation_);
+          ReduceStateDimension(tube_equation_, complete, plenum_equation_, rotated);
+        } else {
+          ReduceStateDimension(tube_equation_, complete, plenum_equation_, cons);
+        }
         Store(complete_states, complete, {j});
       }
     });
   }
 
-  void FillPlenumGhostLayer(
-      ::amrex::FArrayBox& plenum_ghost_data,
-      const ::amrex::FArrayBox& tube_mirror_data) {
-    BasicView cons_states =
-        MakeView<const Conservative<TubeEquation>>(tube_mirror_data, tube_equation_);
+  void FillPlenumGhostLayer(::amrex::FArrayBox& plenum_ghost_data,
+                            const ::amrex::FArrayBox& tube_mirror_data) {
+    BasicView cons_states = MakeView<const Conservative<TubeEquation>>(
+        tube_mirror_data, tube_equation_);
     BasicView complete_states =
         MakeView<Complete<PlenumEquation>>(plenum_ghost_data, plenum_equation_);
     Conservative<TubeEquation> cons(tube_equation_);

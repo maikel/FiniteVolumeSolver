@@ -111,7 +111,7 @@ void ReflectiveBoundary2<Tag, Equation>::FillBoundary(
             AMREX_D_DECL(int(dest[0]), int(dest[1]), int(dest[2]))};
         if (alpha(dest_iv) > 0.0 && alpha(iv) > 0.0) {
           Load(state, states, src);
-          FUB_ASSERT(state.density > 0.0);
+          // FUB_ASSERT(state.density > 0.0);
           Reflect(reflected, state, unit, *equation_);
           Store(states, reflected, dest);
         } else {

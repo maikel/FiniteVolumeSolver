@@ -39,18 +39,19 @@ template <int Rank> struct PerfectGasMix;
 /// This is a template class for constructing conservative states for the
 /// perfect gas equations.
 template <typename Density, typename Momentum, typename Energy,
-          typename Species>
+          typename Species, typename PassiveScalars>
 struct PerfectGasMixConservative {
   Density density;
   Momentum momentum;
   Energy energy;
   Species species;
+  PassiveScalars passive_scalars;
 };
 
 template <int Rank>
 using PerfectGasMixConsShape =
     PerfectGasMixConservative<ScalarDepth, VectorDepth<Rank>, ScalarDepth,
-                              VectorDepth<-1>>;
+                              VectorDepth<-1>, VectorDepth<-1>>;
 
 namespace meta {
 template <int R> struct Rank<PerfectGasMixConsShape<R>> : int_constant<R> {};
@@ -60,14 +61,15 @@ template <int R> struct Rank<PerfectGasMixConsShape<R>> : int_constant<R> {};
 // This enables us to name and iterate over all member variables in a given
 // conservative state.
 template <typename... Xs> struct StateTraits<PerfectGasMixConservative<Xs...>> {
-  static constexpr auto names =
-      std::make_tuple("Density", "Momentum", "Energy", "Species");
+  static constexpr auto names = std::make_tuple("Density", "Momentum", "Energy",
+                                                "Species", "PassiveScalars");
 
   static constexpr auto pointers_to_member =
       std::make_tuple(&PerfectGasMixConservative<Xs...>::density,
                       &PerfectGasMixConservative<Xs...>::momentum,
                       &PerfectGasMixConservative<Xs...>::energy,
-                      &PerfectGasMixConservative<Xs...>::species);
+                      &PerfectGasMixConservative<Xs...>::species,
+                      &PerfectGasMixConservative<Xs...>::passive_scalars);
 
   template <int Rank> using Depths = PerfectGasMixConsShape<Rank>;
 
@@ -75,78 +77,86 @@ template <typename... Xs> struct StateTraits<PerfectGasMixConservative<Xs...>> {
 };
 
 template <typename Density, typename Velocity, typename Pressure,
-          typename Species>
+          typename Species, typename PassiveScalars>
 struct PerfectGasMixPrimitive {
   Density density;
   Velocity velocity;
   Pressure pressure;
   Species species;
+  PassiveScalars passive_scalars;
 };
 
 template <int Rank>
 using PerfectGasMixPrimShape =
     PerfectGasMixPrimitive<ScalarDepth, VectorDepth<Rank>, ScalarDepth,
-                           VectorDepth<-1>>;
+                           VectorDepth<-1>, VectorDepth<-1>>;
 
 namespace meta {
 template <int R> struct Rank<PerfectGasMixPrimShape<R>> : int_constant<R> {};
 } // namespace meta
 
 template <typename... Xs> struct StateTraits<PerfectGasMixPrimitive<Xs...>> {
-  static constexpr auto names =
-      std::make_tuple("Density", "Velocity", "Pressure", "Species");
+  static constexpr auto names = std::make_tuple(
+      "Density", "Velocity", "Pressure", "Species", "PassiveScalars");
 
   static constexpr auto pointers_to_member =
       std::make_tuple(&PerfectGasMixPrimitive<Xs...>::density,
                       &PerfectGasMixPrimitive<Xs...>::velocity,
                       &PerfectGasMixPrimitive<Xs...>::pressure,
-                      &PerfectGasMixPrimitive<Xs...>::species);
+                      &PerfectGasMixPrimitive<Xs...>::species,
+                      &PerfectGasMixPrimitive<Xs...>::passive_scalars);
 
   template <int Rank> using Depths = PerfectGasMixPrimShape<Rank>;
 
   template <int Rank> using Equation = PerfectGasMix<Rank>;
 };
 
-template <typename Density, typename Temperature, typename MoleFractions>
+template <typename Density, typename Temperature, typename MoleFractions,
+          typename PassiveScalars>
 struct PerfectGasMixKineticState {
   Density density;
   Temperature temperature;
   MoleFractions mole_fractions;
+  PassiveScalars passive_scalars;
 };
 
 using PerfectGasMixKineticStateShape =
-    PerfectGasMixKineticState<ScalarDepth, ScalarDepth, VectorDepth<-1>>;
+    PerfectGasMixKineticState<ScalarDepth, ScalarDepth, VectorDepth<-1>,
+                              VectorDepth<-1>>;
 
 namespace meta {
 template <> struct Rank<PerfectGasMixKineticStateShape> : int_constant<1> {};
 } // namespace meta
 
 template <typename... Xs> struct StateTraits<PerfectGasMixKineticState<Xs...>> {
-  static constexpr auto names =
-      std::make_tuple("Density", "Temperature", "MoleFractions");
+  static constexpr auto names = std::make_tuple(
+      "Density", "Temperature", "MoleFractions", "PassiveScalars");
 
   static constexpr auto pointers_to_member =
       std::make_tuple(&PerfectGasMixKineticState<Xs...>::density,
                       &PerfectGasMixKineticState<Xs...>::temperature,
-                      &PerfectGasMixKineticState<Xs...>::mole_fractions);
+                      &PerfectGasMixKineticState<Xs...>::mole_fractions,
+                      &PerfectGasMixKineticState<Xs...>::passive_scalars);
 
   template <int Rank> using Depths = PerfectGasMixKineticStateShape;
 
   template <int Rank> using Equation = PerfectGasMix<Rank>;
 };
 
-template <typename Minus, typename Zero, typename Plus, typename Species>
+template <typename Minus, typename Zero, typename Plus, typename Species,
+          typename PassiveScalars>
 struct PerfectGasMixCharacteristics {
   Minus minus;
   Zero zero;
   Plus plus;
   Species species;
+  PassiveScalars passive_scalars;
 };
 
 template <int Rank>
 using PerfectGasMixCharShape =
     PerfectGasMixCharacteristics<ScalarDepth, VectorDepth<Rank>, ScalarDepth,
-                                 VectorDepth<-1>>;
+                                 VectorDepth<-1>, VectorDepth<-1>>;
 
 namespace meta {
 template <int R> struct Rank<PerfectGasMixCharShape<R>> : int_constant<R> {};
@@ -155,13 +165,14 @@ template <int R> struct Rank<PerfectGasMixCharShape<R>> : int_constant<R> {};
 template <typename... Xs>
 struct StateTraits<PerfectGasMixCharacteristics<Xs...>> {
   static constexpr auto names =
-      std::make_tuple("Minus", "Zero", "Plus", "Species");
+      std::make_tuple("Minus", "Zero", "Plus", "Species", "PassiveScalars");
 
   static constexpr auto pointers_to_member =
       std::make_tuple(&PerfectGasMixCharacteristics<Xs...>::minus,
                       &PerfectGasMixCharacteristics<Xs...>::zero,
                       &PerfectGasMixCharacteristics<Xs...>::plus,
-                      &PerfectGasMixCharacteristics<Xs...>::species);
+                      &PerfectGasMixCharacteristics<Xs...>::species,
+                      &PerfectGasMixCharacteristics<Xs...>::passive_scalars);
 
   template <int Rank> using Depths = PerfectGasMixCharShape<Rank>;
 
@@ -169,9 +180,11 @@ struct StateTraits<PerfectGasMixCharacteristics<Xs...>> {
 };
 
 template <typename Density, typename Momentum, typename Energy,
-          typename Species, typename Pressure, typename SpeedOfSound>
+          typename Species, typename PassiveScalars, typename Pressure,
+          typename SpeedOfSound>
 struct PerfectGasMixComplete
-    : PerfectGasMixConservative<Density, Momentum, Energy, Species> {
+    : PerfectGasMixConservative<Density, Momentum, Energy, Species,
+                                PassiveScalars> {
   Pressure pressure;
   SpeedOfSound speed_of_sound;
 };
@@ -179,7 +192,8 @@ struct PerfectGasMixComplete
 template <int Rank>
 using PerfectGasMixCompleteShape =
     PerfectGasMixComplete<ScalarDepth, VectorDepth<Rank>, ScalarDepth,
-                          VectorDepth<-1>, ScalarDepth, ScalarDepth>;
+                          VectorDepth<-1>, VectorDepth<-1>, ScalarDepth,
+                          ScalarDepth>;
 
 namespace meta {
 template <int R>
@@ -188,15 +202,17 @@ struct Rank<PerfectGasMixCompleteShape<R>> : int_constant<R> {};
 
 // We "register" the complete state with our framework.
 // This enables us to name and iterate over all member variables in a given
-// compete state.
+// complete state.
 template <typename... Xs> struct StateTraits<PerfectGasMixComplete<Xs...>> {
-  static constexpr auto names = std::make_tuple(
-      "Density", "Momentum", "Energy", "Species", "Pressure", "SpeedOfSound");
+  static constexpr auto names =
+      std::make_tuple("Density", "Momentum", "Energy", "Species",
+                      "PassiveScalars", "Pressure", "SpeedOfSound");
   static constexpr auto pointers_to_member =
       std::make_tuple(&PerfectGasMixComplete<Xs...>::density,
                       &PerfectGasMixComplete<Xs...>::momentum,
                       &PerfectGasMixComplete<Xs...>::energy,
                       &PerfectGasMixComplete<Xs...>::species,
+                      &PerfectGasMixComplete<Xs...>::passive_scalars,
                       &PerfectGasMixComplete<Xs...>::pressure,
                       &PerfectGasMixComplete<Xs...>::speed_of_sound);
 
@@ -205,7 +221,45 @@ template <typename... Xs> struct StateTraits<PerfectGasMixComplete<Xs...>> {
   template <int Rank> using Equation = PerfectGasMix<Rank>;
 };
 
-template <int N> struct PerfectGasMix {
+struct PerfectGasConstants {
+  double Rspec{287.4};                 ///< the specific gas constant
+  double gamma{1.28};                  ///< the adiabtic exponent
+  double ooRspec{1. / Rspec};          ///< the inverse specific gas constant
+  double gamma_inv{1.0 / gamma};       ///< 1 / gamma
+  double gamma_minus_one{gamma - 1.0}; ///< gamma - 1
+  double gamma_minus_one_over_gamma{gamma_minus_one *
+                                    gamma_inv};      ///< (gamma-1)/gamma
+  double gamma_minus_one_inv{1.0 / gamma_minus_one}; ///< 1/(gamma-1)
+  double gamma_over_gamma_minus_one{gamma *
+                                    gamma_minus_one_inv}; // gamma/(gamma-1)
+  // double heat_capacity_at_constant_pressure{
+  //     Rspec * gamma_over_gamma_minus_one}; // gamma Rspec / (gamma-1)
+  // double heat_capacity_at_constant_volume{Rspec * gamma_minus_one_inv};
+  double heat_capacity_at_constant_pressure{
+      gamma_over_gamma_minus_one}; // gamma / (gamma-1)
+  double heat_capacity_at_constant_volume{gamma_minus_one_inv};
+  Array1d gamma_array_{Array1d::Constant(gamma)};
+  Array1d gamma_minus_one_inv_array_{Array1d::Constant(gamma_minus_one_inv)};
+
+  /* references for non-dimensionalization */
+  double L_ref = 1.0;                       /* [m]               */
+  double T_ref = 300.00;                    /* [K]               */
+  double p_ref = 1e+5;                      /* [Pa]              */
+  double rho_ref = p_ref / (Rspec * T_ref); /* [kg/m^3]          */
+
+  double u_ref = sqrt(Rspec * T_ref);
+  double t_ref = L_ref / u_ref;
+
+  double Msq = u_ref * u_ref / (Rspec * T_ref);
+  double Msqinv = 1.0 / Msq;
+};
+
+inline PerfectGasConstants ComputeConstants(double Rspec, double gamma) {
+  PerfectGasConstants constants{Rspec, gamma};
+  return constants;
+}
+
+template <int N> struct PerfectGasMix : PerfectGasConstants {
   using ConservativeDepths = PerfectGasMixConsShape<N>;
   using CompleteDepths = PerfectGasMixCompleteShape<N>;
   using PrimitiveDepths = PerfectGasMixPrimShape<N>;
@@ -217,6 +271,13 @@ template <int N> struct PerfectGasMix {
   using ConservativeArray = ::fub::ConservativeArray<PerfectGasMix<N>>;
   using CompleteArray = ::fub::CompleteArray<PerfectGasMix<N>>;
   using KineticState = ::fub::KineticState<PerfectGasMix<N>>;
+
+  PerfectGasMix() = default;
+
+  PerfectGasMix(const PerfectGasConstants& constants, int nspecies,
+                int num_passive_scalars = 0)
+      : PerfectGasConstants{constants}, n_species{nspecies},
+        n_passive_scalars{num_passive_scalars} {}
 
   static constexpr int Rank() noexcept { return N; }
 
@@ -243,7 +304,9 @@ template <int N> struct PerfectGasMix {
 
   Complete CompleteFromPrim(double density, const Array<double, N, 1>& u,
                             double pressure,
-                            const Array<double, -1, 1>& species) const noexcept;
+                            const Array<double, -1, 1>& species,
+                            const Array<double, -1, 1>& passive_scalars) const
+      noexcept;
 
   // CompleteArray CompleteFromPrim(Array1d density, const Array<double, N>& u,
   //                                Array1d pressure,
@@ -257,20 +320,12 @@ template <int N> struct PerfectGasMix {
   double Temperature(const Complete& q) const noexcept;
   Array1d Temperature(const CompleteArray& q) const noexcept;
 
+  void SetConstants(double Rspec, double gamma) noexcept {
+    (PerfectGasConstants&)(*this) = ComputeConstants(Rspec, gamma);
+  }
+
   int n_species{0};
-
-  // Rspec = cp - cv
-  // gamma = cp / cv
-  // cp = cv gamma
-  // Rspec = gamma cv - cv
-  // Rspec = (gamma - 1) cv
-  // Rpsec /(gamma - 1) = cv
-  double Rspec{1.};
-  double gamma{1.28};
-  double gamma_minus_1_inv{1.0 / (gamma - 1.0)};
-
-  Array1d gamma_array_{Array1d::Constant(gamma)};
-  Array1d gamma_minus_1_inv_array_{Array1d::Constant(gamma_minus_1_inv)};
+  int n_passive_scalars{0};
 
 private:
   template <typename State>
@@ -283,15 +338,21 @@ private:
     } else {
       depths.species = eq.n_species;
     }
+    depths.passive_scalars = eq.n_passive_scalars;
     return depths;
   }
 
+  friend constexpr auto tag_invoke(tag_t<euler::MaSq>,
+                                   const PerfectGasMix& eq) noexcept {
+    return eq.Msq;
+  }
+
   template <typename Density, typename Momentum, typename Energy,
-            typename Species>
+            typename Species, typename PassiveScalars>
   friend auto
   tag_invoke(tag_t<euler::Gamma>, const PerfectGasMix& eq,
-             const PerfectGasMixConservative<Density, Momentum, Energy,
-                                             Species>&) noexcept {
+             const PerfectGasMixConservative<Density, Momentum, Energy, Species,
+                                             PassiveScalars>&) noexcept {
     if constexpr (std::is_same_v<double, Density>) {
       return eq.gamma;
     } else {
@@ -300,35 +361,38 @@ private:
   }
 
   template <typename Density, typename Momentum, typename Energy,
-            typename Species>
+            typename Species, typename PassiveScalars>
   friend const Density&
   tag_invoke(tag_t<euler::Density>, const PerfectGasMix&,
-             const PerfectGasMixConservative<Density, Momentum, Energy,
-                                             Species>& q) noexcept {
+             const PerfectGasMixConservative<Density, Momentum, Energy, Species,
+                                             PassiveScalars>& q) noexcept {
     return q.density;
   }
 
   template <typename Density, typename Momentum, typename Energy,
-            typename Species>
+            typename Species, typename PassiveScalars>
   friend auto
   tag_invoke(tag_t<euler::InternalEnergy>, const PerfectGasMix& eq,
-             const PerfectGasMixConservative<Density, Momentum, Energy,
-                                             Species>& q) noexcept {
-    return (q.energy - euler::KineticEnergy(q.density, q.momentum)) / q.density;
+             const PerfectGasMixConservative<Density, Momentum, Energy, Species,
+                                             PassiveScalars>& q) noexcept {
+    return (q.energy - eq.Msq * euler::KineticEnergy(q.density, q.momentum)) /
+           q.density;
   }
 
-  template <typename Density, typename Temperature, typename MoleFractions>
-  friend auto
-  tag_invoke(tag_t<euler::InternalEnergy>, const PerfectGasMix& eq,
-             const PerfectGasMixKineticState<Density, Temperature,
-                                             MoleFractions>& q) noexcept {
+  template <typename Density, typename Temperature, typename MoleFractions,
+            typename PassiveScalars>
+  friend auto tag_invoke(
+      tag_t<euler::InternalEnergy>, const PerfectGasMix& eq,
+      const PerfectGasMixKineticState<Density, Temperature, MoleFractions,
+                                      PassiveScalars>& q) noexcept {
     // Rspec = cp - cv
     // gamma = cp / cv
     // cp = cv gamma
     // Rspec = gamma cv - cv
     // Rspec = (gamma - 1) cv
     // Rpsec /(gamma - 1) = cv
-    const double cv = eq.Rspec * eq.gamma_minus_1_inv;
+    // const double cv = eq.Rspec * eq.gamma_minus_one_inv;
+    const double cv = eq.gamma_minus_one_inv;
     return cv * q.temperature;
   }
 
@@ -340,12 +404,15 @@ private:
     q.momentum = q.density * u;
     const double e = euler::InternalEnergy(eq, kin);
     q.energy = q.density * (e + 0.5 * u.matrix().squaredNorm());
-    const double RT = eq.Rspec * kin.temperature;
+    const double RT = kin.temperature;// * eq.Rspec;
     q.pressure = RT * q.density;
     q.speed_of_sound = std::sqrt(eq.gamma * RT);
     const double sum = kin.mole_fractions.sum();
     for (int i = 0; i < eq.n_species; i++) {
       q.species[i] = q.density * kin.mole_fractions[i] / sum;
+    }
+    for (int i = 0; i < eq.n_passive_scalars; i++) {
+      q.passive_scalars[i] = q.density * kin.passive_scalars[i];
     }
   }
 
@@ -360,23 +427,27 @@ private:
       sum += kin.mole_fractions[i];
     }
     kin.mole_fractions[eq.n_species] = std::max(0.0, 1.0 - sum);
+    for (int i = 0; i < eq.n_passive_scalars; ++i) {
+      kin.passive_scalars[i] = q.passive_scalars[i] / q.density;
+    }
   }
 
   template <typename Density, typename Momentum, typename Energy,
-            typename Species>
+            typename Species, typename PassiveScalars>
   friend const Momentum&
   tag_invoke(tag_t<euler::Momentum>, const PerfectGasMix&,
-             const PerfectGasMixConservative<Density, Momentum, Energy,
-                                             Species>& q) noexcept {
+             const PerfectGasMixConservative<Density, Momentum, Energy, Species,
+                                             PassiveScalars>& q) noexcept {
     return q.momentum;
   }
 
   template <typename Density, typename Momentum, typename Energy,
-            typename Species>
-  friend decltype(auto) tag_invoke(
-      tag_t<euler::Momentum>, const PerfectGasMix&,
-      const PerfectGasMixConservative<Density, Momentum, Energy, Species>& q,
-      int d) noexcept {
+            typename Species, typename PassiveScalars>
+  friend decltype(auto)
+  tag_invoke(tag_t<euler::Momentum>, const PerfectGasMix&,
+             const PerfectGasMixConservative<Density, Momentum, Energy, Species,
+                                             PassiveScalars>& q,
+             int d) noexcept {
     if constexpr (std::is_same_v<double, Density>) {
       return q.momentum[d];
     } else {
@@ -385,11 +456,11 @@ private:
   }
 
   template <typename Density, typename Momentum, typename Energy,
-            typename Species>
+            typename Species, typename PassiveScalars>
   friend Momentum
   tag_invoke(tag_t<euler::Velocity>, const PerfectGasMix&,
-             const PerfectGasMixConservative<Density, Momentum, Energy,
-                                             Species>& q) noexcept {
+             const PerfectGasMixConservative<Density, Momentum, Energy, Species,
+                                             PassiveScalars>& q) noexcept {
     if constexpr (std::is_same_v<double, Density>) {
       return q.momentum / q.density;
     } else {
@@ -402,11 +473,11 @@ private:
   }
 
   template <typename Density, typename Momentum, typename Energy,
-            typename Species>
-  friend void
-  tag_invoke(tag_t<euler::SetVelocity>, const PerfectGasMix&,
-             PerfectGasMixConservative<Density, Momentum, Energy, Species>& q,
-             nodeduce_t<const Momentum&> v) noexcept {
+            typename Species, typename PassiveScalars>
+  friend void tag_invoke(tag_t<euler::SetVelocity>, const PerfectGasMix&,
+                         PerfectGasMixConservative<Density, Momentum, Energy,
+                                                   Species, PassiveScalars>& q,
+                         nodeduce_t<const Momentum&> v) noexcept {
     if constexpr (std::is_same_v<double, Density>) {
       const double rhoE_kin_old = euler::KineticEnergy(q.density, q.momentum);
       q.momentum = q.density * v;
@@ -416,11 +487,12 @@ private:
   }
 
   template <typename Density, typename Momentum, typename Energy,
-            typename Species>
-  friend auto tag_invoke(
-      tag_t<euler::Velocity>, const PerfectGasMix&,
-      const PerfectGasMixConservative<Density, Momentum, Energy, Species>& q,
-      int d) noexcept {
+            typename Species, typename PassiveScalars>
+  friend auto
+  tag_invoke(tag_t<euler::Velocity>, const PerfectGasMix&,
+             const PerfectGasMixConservative<Density, Momentum, Energy, Species,
+                                             PassiveScalars>& q,
+             int d) noexcept {
     if constexpr (std::is_same_v<double, Density>) {
       return q.momentum[d] / q.density;
     } else {
@@ -429,38 +501,39 @@ private:
   }
 
   template <typename Density, typename Momentum, typename Energy,
-            typename Species>
+            typename Species, typename PassiveScalars>
   friend const Energy&
   tag_invoke(tag_t<euler::Energy>, const PerfectGasMix&,
-             const PerfectGasMixConservative<Density, Momentum, Energy,
-                                             Species>& q) noexcept {
+             const PerfectGasMixConservative<Density, Momentum, Energy, Species,
+                                             PassiveScalars>& q) noexcept {
     return q.energy;
   }
 
   template <typename Density, typename Momentum, typename Energy,
-            typename Species>
+            typename Species, typename PassiveScalars>
   friend const Species&
   tag_invoke(tag_t<euler::Species>, const PerfectGasMix&,
-             const PerfectGasMixConservative<Density, Momentum, Energy,
-                                             Species>& q) noexcept {
+             const PerfectGasMixConservative<Density, Momentum, Energy, Species,
+                                             PassiveScalars>& q) noexcept {
     return q.species;
   }
 
   template <typename Density, typename Velocity, typename Pressure,
-            typename Species>
+            typename Species, typename PassiveScalars>
   friend const Species&
   tag_invoke(tag_t<euler::Species>, const PerfectGasMix&,
-             const PerfectGasMixPrimitive<Density, Velocity, Pressure, Species>&
-                 q) noexcept {
+             const PerfectGasMixPrimitive<Density, Velocity, Pressure, Species,
+                                          PassiveScalars>& q) noexcept {
     return q.species;
   }
 
   template <typename Density, typename Momentum, typename Energy,
-            typename Species>
-  friend decltype(auto) tag_invoke(
-      tag_t<euler::Species>, const PerfectGasMix&,
-      const PerfectGasMixConservative<Density, Momentum, Energy, Species>& q,
-      int d) noexcept {
+            typename Species, typename PassiveScalars>
+  friend decltype(auto)
+  tag_invoke(tag_t<euler::Species>, const PerfectGasMix&,
+             const PerfectGasMixConservative<Density, Momentum, Energy, Species,
+                                             PassiveScalars>& q,
+             int d) noexcept {
     if constexpr (std::is_same_v<double, Density>) {
       return q.species[d];
     } else {
@@ -469,34 +542,47 @@ private:
   }
 
   template <typename Density, typename Momentum, typename Energy,
-            typename Species, typename Pressure, typename SpeedOfSound>
+            typename Species, typename PassiveScalars, typename Pressure,
+            typename SpeedOfSound>
   friend Density
   tag_invoke(tag_t<euler::TotalEnthalpy>, const PerfectGasMix&,
              const PerfectGasMixComplete<Density, Momentum, Energy, Species,
-                                         Pressure, SpeedOfSound>& q) noexcept {
+                                         PassiveScalars, Pressure,
+                                         SpeedOfSound>& q) noexcept {
     return (q.energy + q.pressure) / q.density;
   }
 
   template <typename Density, typename Momentum, typename Energy,
-            typename Species, typename Pressure, typename SpeedOfSound>
+            typename Species, typename PassiveScalars, typename Pressure,
+            typename SpeedOfSound>
   friend const Pressure&
   tag_invoke(tag_t<euler::Pressure>, const PerfectGasMix&,
              const PerfectGasMixComplete<Density, Momentum, Energy, Species,
-                                         Pressure, SpeedOfSound>& q) noexcept {
+                                         PassiveScalars, Pressure,
+                                         SpeedOfSound>& q) noexcept {
     return q.pressure;
   }
 
   friend double tag_invoke(tag_t<euler::Pressure>, const PerfectGasMix& eq,
+                           const Conservative& q) noexcept {
+    const double ekin = euler::KineticEnergy(q.density, q.momentum);
+    return (q.energy - ekin) * eq.gamma_minus_one;
+  }
+
+  friend double tag_invoke(tag_t<euler::Pressure>, const PerfectGasMix& eq,
                            const KineticState& q) noexcept {
-    return eq.Rspec * q.temperature * q.density;
+    // return eq.Rspec * q.temperature * q.density;
+    return q.temperature * q.density;
   }
 
   template <typename Density, typename Momentum, typename Energy,
-            typename Species, typename Pressure, typename SpeedOfSound>
+            typename Species, typename PassiveScalars, typename Pressure,
+            typename SpeedOfSound>
   friend const SpeedOfSound&
   tag_invoke(tag_t<euler::SpeedOfSound>, const PerfectGasMix&,
              const PerfectGasMixComplete<Density, Momentum, Energy, Species,
-                                         Pressure, SpeedOfSound>& q) noexcept {
+                                         PassiveScalars, Pressure,
+                                         SpeedOfSound>& q) noexcept {
     return q.speed_of_sound;
   }
 
@@ -508,41 +594,47 @@ private:
     const double T_old = euler::Temperature(eq, q0);
     const Array<double, N, 1> u_old = euler::Velocity(eq, q0);
     const double c = euler::SpeedOfSound(eq, q0);
-    const double c2 = c*c;
+    const double c2 = c * c;
     const double Ma2 = u_old.matrix().squaredNorm() / c2;
 
-    const double alpha = 1.0 + 0.5 * Ma2 / eq.gamma_minus_1_inv;
-    const double rho_0 = rho_old * std::pow(alpha, eq.gamma_minus_1_inv);
-    const double p_0 = p_old * std::pow(alpha, eq.gamma * eq.gamma_minus_1_inv);
+    const double alpha = 1.0 + 0.5 * Ma2 * eq.gamma_minus_one;
+    const double rho_0 = rho_old * std::pow(alpha, eq.gamma_minus_one_inv);
+    const double p_0 =
+        p_old * std::pow(alpha, eq.gamma * eq.gamma_minus_one_inv);
     const double T_0 = T_old * alpha;
-    
-    const double rho_new = rho_0 * std::pow(p_new / p_0, 1 / eq.gamma);
-    const double T_new = p_new / rho_new / eq.Rspec;
-    
+
+    const double rho_new = rho_0 * std::pow(p_new / p_0, eq.gamma_inv);
+    const double T_new = p_new / rho_new;// * eq.ooRspec;
+
     // a = (gamma - 1) / 2
     // T0 = T_new (1 + a Ma2_n)
-    // (gamma R) (T_0 - T_new) / a = (gamma R) (T_new (1 + a Ma2_n) - T_new) / a = (gamma R) T_new Ma2_n = c2_n Ma2_n = u2_n
-    const double u2_new = 2.0 * eq.gamma_minus_1_inv * eq.gamma * eq.Rspec * (T_0 - T_new);
-    // const Array<double, N, 1> u0 = euler::Velocity(eq, q0);
+    // (gamma R) (T_0 - T_new) / a = (gamma R) (T_new (1 + a Ma2_n) - T_new) / a
+    // = (gamma R) T_new Ma2_n = c2_n Ma2_n = u2_n
+    // const double u2_new =
+    //     2.0 * eq.gamma_over_gamma_minus_one * eq.Rspec * (T_0 - T_new);
+    const double u2_new =
+        2.0 * eq.gamma_over_gamma_minus_one * (T_0 - T_new);
+    // // const Array<double, N, 1> u0 = euler::Velocity(eq, q0);
     Array<double, N, 1> u_new = Array<double, N, 1>::Zero();
     u_new[0] = ((u2_new > 0.0) - (u2_new < 0.0)) * std::sqrt(std::abs(u2_new));
-    
+
     // Array<double, N, 1> u_new = u_old;
     // u_new[0] =
     //     u_old[0] +
     //     2.0 * std::sqrt(eq.gamma * q0.pressure / q0.density) *
-    //         eq.gamma_minus_1_inv -
-    //     2.0 * std::sqrt(eq.gamma * p_new / rho_new) * eq.gamma_minus_1_inv;
+    //         eq.gamma_minus_one_inv -
+    //     2.0 * std::sqrt(eq.gamma * p_new / rho_new) * eq.gamma_minus_one_inv;
     // const double rho_new =
     //     std::pow(p_new / q0.pressure, 1 / eq.gamma) * q0.density;
     const Array<double, N, 1> rhou_new = rho_new * u_new;
-    const double rhoE_new =
-        p_new * eq.gamma_minus_1_inv + euler::KineticEnergy(rho_new, rhou_new);
+    const double rhoE_new = p_new * eq.gamma_minus_one_inv +
+                            euler::KineticEnergy(rho_new, rhou_new);
 
     q.density = rho_new;
     q.momentum = rhou_new;
     q.energy = rhoE_new;
     q.species = q0.species;
+    q.passive_scalars = q0.passive_scalars;
     q.pressure = p_new;
     q.speed_of_sound = std::sqrt(eq.gamma * p_new / rho_new);
   }
@@ -558,8 +650,9 @@ template <int Rank>
 void CompleteFromPrim(const PerfectGasMix<Rank>& equation,
                       Complete<PerfectGasMix<Rank>>& complete,
                       const Primitive<PerfectGasMix<Rank>>& prim) {
-  complete = equation.CompleteFromPrim(prim.density, prim.velocity,
-                                       prim.pressure, prim.species);
+  complete =
+      equation.CompleteFromPrim(prim.density, prim.velocity, prim.pressure,
+                                prim.species, prim.passive_scalars);
 }
 
 template <int Rank>
@@ -574,9 +667,13 @@ void CompleteFromPrim(const PerfectGasMix<Rank>& equation,
   for (int s = 0; s < equation.n_species; ++s) {
     complete.species.row(s) = prim.density * prim.species.row(s);
   }
+  for (int s = 0; s < equation.n_passive_scalars; ++s) {
+    complete.passive_scalars.row(s) =
+        prim.density * prim.passive_scalars.row(s);
+  }
   const Array1d e_kin =
-      euler::KineticEnergy(complete.density, complete.momentum);
-  complete.energy = e_kin + complete.pressure * equation.gamma_minus_1_inv;
+      equation.Msq * euler::KineticEnergy(complete.density, complete.momentum);
+  complete.energy = e_kin + complete.pressure * equation.gamma_minus_one_inv;
   complete.speed_of_sound =
       (equation.gamma * complete.pressure / complete.density).sqrt();
 }
@@ -590,6 +687,9 @@ void PrimFromComplete(const PerfectGasMix<Rank>& equation,
   prim.velocity = complete.momentum / complete.density;
   for (int i = 0; i < equation.n_species; ++i) {
     prim.species[i] = complete.species[i] / complete.density;
+  }
+  for (int i = 0; i < equation.n_passive_scalars; ++i) {
+    prim.passive_scalars[i] = complete.passive_scalars[i] / complete.density;
   }
 }
 
@@ -605,6 +705,10 @@ void PrimFromComplete(const PerfectGasMix<Rank>& equation,
   for (int i = 0; i < equation.n_species; ++i) {
     prim.species.row(i) = complete.species.row(i) / complete.density;
   }
+  for (int i = 0; i < equation.n_passive_scalars; ++i) {
+    prim.passive_scalars.row(i) =
+        complete.passive_scalars.row(i) / complete.density;
+  }
 }
 
 template <int Rank>
@@ -619,13 +723,16 @@ void tag_invoke(tag_t<euler::CompleteFromKineticState>,
   }
   const Array1d e = euler::InternalEnergy(eq, kin);
   const Array1d rhoE_kin = euler::KineticEnergy(q.density, q.momentum);
-  q.energy = q.density * e + rhoE_kin;
-  const Array1d RT = eq.Rspec * kin.temperature;
+  q.energy = q.density * e + eq.Msq * rhoE_kin;
+  const Array1d RT = kin.temperature;// * eq.Rspec;
   q.pressure = RT * q.density;
   q.speed_of_sound = Eigen::sqrt(eq.gamma * RT);
   const Array1d sum = kin.mole_fractions.colwise().sum();
   for (int i = 0; i < eq.n_species; i++) {
     q.species.row(i) = q.density * kin.mole_fractions.row(i) / sum;
+  }
+  for (int i = 0; i < eq.n_passive_scalars; i++) {
+    q.passive_scalars.row(i) = q.density * kin.passive_scalars.row(i);
   }
 }
 
@@ -655,6 +762,9 @@ void tag_invoke(tag_t<euler::KineticStateFromComplete>,
     kin.mole_fractions.row(i) /= sum;
   }
   FUB_ASSERT(kin.mole_fractions.colwise().sum().isApproxToConstant(1.0));
+  for (int i = 0; i < eq.n_passive_scalars; ++i) {
+    kin.passive_scalars.row(i) = (q.passive_scalars.row(i) / q.density);
+  }
 }
 
 template <int Rank>

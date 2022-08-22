@@ -24,7 +24,7 @@
 namespace fub {
 
 Counter* CounterRegistry::get(std::string const& name) {
-  auto [iterator, _] = database_.emplace(name, name);
+  auto iterator = database_.emplace(name, name).first;
   return &iterator->second;
 }
 

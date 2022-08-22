@@ -27,6 +27,7 @@
 #include "fub/ForEach.hpp"
 
 #include "fub/AMReX/AverageState.hpp"
+#include "fub/AMReX/MultiFabUtilities.hpp"
 
 #include "fub/ext/Log.hpp"
 
@@ -77,31 +78,55 @@ void MassflowBoundary<Rank>::ComputeBoundaryState(
     Complete<IdealGasMix<Rank>>& boundary,
     const Complete<IdealGasMix<Rank>>& state) {
   const double rho = state.density;
-  const double u = state.momentum[int(options_.dir)] / rho;
-  const double p = state.pressure;
-  const double gamma = state.gamma;
-  const double c = state.speed_of_sound;
-  const double gammaMinus = gamma - 1.0;
-  const double gammaPlus = gamma + 1.0;
-  const double rGammaPlus = 1.0 / gammaPlus;
-  const double c_critical =
-      std::sqrt(c * c + 0.5 * gammaMinus * u * u) * std::sqrt(2 * rGammaPlus);
-  const double u_n = options_.required_massflow / rho / options_.surface_area;
-  const double lambda = u / c_critical;
-  const double lambda_n = u_n / c_critical;
-  const double gammaQuot = gammaMinus * rGammaPlus;
-  const double p0_n =
-      p * std::pow(1. - gammaQuot * lambda_n * lambda_n, -gamma / gammaMinus);
-  const double p_n =
-      p0_n * std::pow(1. - gammaQuot * lambda * lambda, gamma / gammaMinus);
-
+  const double a = state.speed_of_sound;
+  const double m = options_.required_massflow / options_.surface_area / (rho * a);
+  auto uL = [&] {
+    if (options_.side == 0) {
+      const double uR = state.momentum[int(options_.dir)] / rho / a;
+      if (m == uR) {
+        return uR;
+      } else if (m < uR) {
+        if (m >= 1.0) {
+          return m;
+        } else if (m > -1.0) {
+          return (2.0 * m + uR * (m - 1.0)) / (m + 1.0);
+        } else {
+          return -1.0;
+        }
+      } else {
+        if (2.0 - m <= uR) {
+          return m;
+        } else {
+          return std::sqrt(4 * m + (uR - 1.0) * (uR - 1.0)) - 1.0;
+        } 
+      }
+    } else {
+      const double uL = state.momentum[int(options_.dir)] / rho / a;
+      if (m == uL) {
+        return uL;
+      } else if (m > uL) {
+        if (m >= 1.0) {
+          return 1.0;
+        } else if (m > -1.0) {
+          return (2.0 * m - uL * (m + 1.0)) / (1.0 - m);
+        } else {
+          return m;
+        }
+      } else {
+        if (m <= -(2.0 - uL)) {
+          return m;
+        } else {
+          return 1.0 - std::sqrt((uL + 1.0) * (uL + 1.0) - 4.0 * m);
+        }
+      }
+    }
+  };
+  Eigen::Array<double, Rank, 1> velocity =
+      Eigen::Array<double, Rank, 1>::Zero();
+  velocity[int(options_.dir)] = uL() * a;
   equation_.GetReactor().SetDensity(state.density);
   equation_.GetReactor().SetMassFractions(state.species);
   equation_.GetReactor().SetTemperature(state.temperature);
-  equation_.GetReactor().SetPressureIsentropic(p_n);
-  Eigen::Array<double, Rank, 1> velocity =
-      Eigen::Array<double, Rank, 1>::Zero();
-  velocity[int(options_.dir)] = u_n;
   equation_.CompleteFromReactor(boundary, velocity);
 }
 
@@ -118,26 +143,30 @@ void MassflowBoundary<Rank>::FillBoundary(::amrex::MultiFab& mf,
   BOOST_LOG_SCOPED_LOGGER_TAG(log, "Time", t.count());
 
   Complete<IdealGasMix<Rank>> state(equation_);
+  // const ::amrex::Box fine_box = GetFineBoxAtLevel(options_.coarse_inner_box, grid, level);
+  // AverageState(state, mf, geom, fine_box);
   AverageState(state, mf, geom, options_.coarse_inner_box);
-  equation_.CompleteFromCons(state, state);
-  double rho = state.density;
-  double u = state.momentum[static_cast<int>(options_.dir)] / rho;
-  double p = state.pressure;
-  BOOST_LOG(log) << fmt::format(
-      "Average inner state: rho = {} [kg/m3], u = {} [m/s], p = {} [Pa]", rho,
-      u, p);
+  if (state.density > 0.0) {
+    equation_.CompleteFromCons(state, state);
+    double rho = state.density;
+    double u = state.momentum[static_cast<int>(options_.dir)] / rho;
+    double p = state.pressure;
+    BOOST_LOG(log) << fmt::format(
+        "Average inner state: rho = {} [kg/m3], u = {} [m/s], p = {} [Pa]", rho,
+        u, p);
 
-  ComputeBoundaryState(state, state);
+    ComputeBoundaryState(state, state);
 
-  rho = state.density;
-  u = state.momentum[static_cast<int>(options_.dir)] / rho;
-  p = state.pressure;
-  const double c = state.speed_of_sound;
-  const double Ma = u / c;
-  BOOST_LOG(log) << fmt::format("Outer state: rho = {} [kg/m3], u = {} [m/s], "
-                                "p = {} [Pa], Ma = {} [-]",
-                                rho, u, p, Ma);
-  FillBoundary(mf, geom, state);
+    rho = state.density;
+    u = state.momentum[static_cast<int>(options_.dir)] / rho;
+    p = state.pressure;
+    const double c = state.speed_of_sound;
+    const double Ma = u / c;
+    BOOST_LOG(log) << fmt::format("Outer state: rho = {} [kg/m3], u = {} [m/s], "
+                                  "p = {} [Pa], Ma = {} [-]",
+                                  rho, u, p, Ma);
+    FillBoundary(mf, geom, state);
+  }
 }
 
 template <int Rank>

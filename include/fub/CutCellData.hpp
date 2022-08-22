@@ -27,9 +27,23 @@
 namespace fub {
 
 inline std::array<double, 2> Intersect(const std::array<double, 2>& i1,
-                                const std::array<double, 2>& i2) {
+                                       const std::array<double, 2>& i2) {
   return {std::max(i1[0], i2[0]), std::min(i1[1], i2[1])};
 }
+
+template <int Rank>
+struct HGridIntegrationPoints {
+    static constexpr int kMaxSources = 9;
+
+    std::array<Index<Rank>, kMaxSources> index{};
+    std::array<double, kMaxSources> volume{};
+    std::array<Coordinates<Rank>, kMaxSources> xM{};
+
+    Index<Rank> iB{};
+    Coordinates<Rank> xB{};
+};
+
+Coordinates<2> Centroid(const HGridIntegrationPoints<2>& polygon);
 
 template <int Rank> struct CutCellData {
   static constexpr auto sRank = static_cast<std::size_t>(Rank);
@@ -55,7 +69,14 @@ template <int Rank> struct CutCellData {
       shielded_right_fractions_rel;
   std::array<PatchDataView<const double, Rank>, sRank>
       doubly_shielded_fractions_rel;
+
+  std::array<PatchDataView<const double, Rank + 1>, sRank> hgrid_integration_points;
+  PatchDataView<const double, Rank + 1> hgrid_total_inner_integration_points;
 };
+
+HGridIntegrationPoints<2> GetHGridIntegrationPoints(const CutCellData<2>& geom, Index<2> index, const Coordinates<2>& dx, Direction dir);
+
+HGridIntegrationPoints<2> GetHGridTotalInnerIntegrationPoints(const CutCellData<2>& geom, Index<2> index, const Coordinates<2>& dx);
 
 [[nodiscard]] bool IsCutCell(const CutCellData<2>& geom,
                              const std::array<std::ptrdiff_t, 2>& index);
@@ -89,11 +110,34 @@ GetVolumeCentroid(const CutCellData<3>& ccdata,
 
 [[nodiscard]] Eigen::Vector2d GetUnshieldedCentroid(const CutCellData<2>& geom,
                                                     const Index<2>& face,
-                                                    const Eigen::Vector2d& dx,
                                                     Direction dir);
 
+[[nodiscard]] Eigen::Vector2d
+GetAbsoluteUnshieldedCentroid(const CutCellData<2>& geom, const Index<2>& face,
+                              const Eigen::Vector2d& dx, Direction dir);
+
+[[nodiscard]] Eigen::Vector2d
+GetUnshieldedVolumeCentroid(const CutCellData<2>& geom, const Index<2>& face,
+                            Side side, Direction dir);
+
+[[nodiscard]] Eigen::Vector2d
+GetAbsoluteUnshieldedVolumeCentroid(const CutCellData<2>& geom,
+                                    const Index<2>& face, Side side,
+                                    Direction dir, const Eigen::Vector2d& dx);
+
+[[nodiscard]] Eigen::Vector2d
+GetAbsoluteSinglyShieldedFromRightVolumeCentroid(const CutCellData<2>& geom,
+                                    const Index<2>& face, Side side,
+                                    Direction dir, const Eigen::Vector2d& dx);
+
+[[nodiscard]] Eigen::Vector2d
+GetAbsoluteSinglyShieldedFromLeftVolumeCentroid(const CutCellData<2>& geom,
+                                    const Index<2>& face, Side side,
+                                    Direction dir, const Eigen::Vector2d& dx);
+
 template <std::size_t Rank>
-Eigen::Matrix<double, Rank, 1> GetOffset(const std::array<std::ptrdiff_t, Rank>& index) {
+Eigen::Matrix<double, Rank, 1>
+GetOffset(const std::array<std::ptrdiff_t, Rank>& index) {
   static constexpr int iRank = static_cast<int>(Rank);
   Eigen::Matrix<double, iRank, 1> offset;
   for (int i = 0; i < iRank; ++i) {
@@ -118,8 +162,8 @@ GetAbsoluteVolumeCentroid(const CutCellData<Rank>& geom,
 template <int Rank>
 Eigen::Matrix<double, Rank, 1>
 GetAbsoluteBoundaryCentroid(const CutCellData<Rank>& geom,
-                          const Index<Rank>& index,
-                          const Eigen::Matrix<double, Rank, 1>& dx) {
+                            const Index<Rank>& index,
+                            const Eigen::Matrix<double, Rank, 1>& dx) {
   const Eigen::Matrix<double, Rank, 1> relative_xB =
       GetBoundaryCentroid(geom, index);
   const Eigen::Matrix<double, Rank, 1> offset = GetOffset<Rank>(index);

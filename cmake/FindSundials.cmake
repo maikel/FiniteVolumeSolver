@@ -53,15 +53,15 @@ find_library(Sundials_cvode_LIBRARY
 set(Sundials_VERSION ${PC_Sundials_VERSION})
 
 include(FindPackageHandleStandardArgs)
-find_package_handle_standard_args(Sundials_cvode
-  FOUND_VAR Sundials_cvode_FOUND
+find_package_handle_standard_args(Sundials
+  FOUND_VAR Sundials_FOUND
   REQUIRED_VARS 
-    Sundials_cvode_LIBRARY
+    Sundials_LIBRARY
     Sundials_INCLUDE_DIR
   VERSION_VAR Sundials_VERSION
 )
 
-if (Sundials_cvode_FOUND AND NOT TARGET Sundials::cvode)
+if (Sundials_FOUND AND NOT TARGET Sundials::cvode)
   add_library(Sundials::cvode UNKNOWN IMPORTED)
   set_target_properties(Sundials::cvode PROPERTIES
       INTERFACE_COMPILE_DEFINITIONS  "${PC_Sundials_CFLAGS_OTHER}"

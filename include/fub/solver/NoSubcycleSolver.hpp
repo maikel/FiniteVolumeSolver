@@ -96,6 +96,11 @@ NoSubcycleSolver<LevelIntegrator>::AdvanceLevel(int level,
     Base::CompleteFromCons(level, time_step_size);
   }
   Base::CopyScratchToData(level);
+  if (level == 0) {
+    Base::GetContext().FillGhostLayerSingleLevel(level);
+  } else {
+    Base::GetContext().FillGhostLayerTwoLevels(level, level - 1);
+  }
   return Base::PostAdvanceLevel(level, time_step_size, {0, 1});
 }
 

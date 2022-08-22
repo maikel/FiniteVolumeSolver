@@ -27,6 +27,8 @@
 #include <fmt/format.h>
 #include <fstream>
 
+#include <range/v3/view/enumerate.hpp>
+
 namespace fub::amrex {
 namespace {
 template <typename T>
@@ -35,7 +37,7 @@ using ProbesView = basic_mdspan<T, extents<AMREX_SPACEDIM, dynamic_extent>>;
 template <typename GriddingAlgorithm>
 void CreateHdf5Database(const std::string& name, const GriddingAlgorithm& grid,
                         ProbesView<const double> probes,
-                        mdspan<const double, 2> states) {
+                        mdspan<const double, 2> states, span<std::string> field_names) {
   //SeverityLogger log = GetLogger(boost::log::trivial::info);
   // BOOST_LOG_SCOPED_LOGGER_TAG(log, "Channel", "ProbesOutput");
   // BOOST_LOG(log) << "Create HDF5 file  '" << name << "'.";
@@ -48,6 +50,26 @@ void CreateHdf5Database(const std::string& name, const GriddingAlgorithm& grid,
   H5File file(H5Fcreate(name.c_str(), H5F_ACC_TRUNC, H5P_DEFAULT, H5P_DEFAULT));
   const hsize_t n_probes = static_cast<hsize_t>(probes.extent(1));
   const hsize_t n_fields = static_cast<hsize_t>(states.extent(1));
+  // Create Field names
+  if (!field_names.empty()) {
+    std::array<hsize_t, 1> dims = {static_cast<hsize_t>(field_names.size())};
+    H5Space dataspace(H5Screate_simple(dims.size(), dims.data(), nullptr));
+    H5Type datatype(H5Tcopy(H5T_C_S1));
+    H5Tset_size(datatype, H5T_VARIABLE);
+    H5Dataset dataset(H5Dcreate2(file, "/fields", datatype, dataspace,
+                                 H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT));
+    hsize_t count[] = {1};
+    H5Space memspace(H5Screate_simple(dims.size(), count, nullptr));
+    // Now we write each field name into the dataset
+    for (auto&& [i, field_name] : ranges::view::enumerate(field_names)) {
+      // H5Space filespace(H5Dget_space(dataset));
+      hsize_t offset[] = {i};
+      H5Sselect_hyperslab(dataspace, H5S_SELECT_SET, offset, nullptr, count,
+                          nullptr);
+      const char* c_str = field_name.c_str();
+      H5Dwrite(dataset, datatype, memspace, dataspace, H5P_DEFAULT, &c_str);
+    }
+  }
   // BOOST_LOG(log) << "Write initial probe data.";
   // create a main data set with probe data for each time step
   {
@@ -198,7 +220,7 @@ void RenameFileIfExists(const std::string& filename) {
 } // namespace
 
 LogProbesOutput::LogProbesOutput(const ProgramOptions& vm)
-    : OutputAtFrequencyOrInterval<MultiBlockGriddingAlgorithm>(vm) {
+    : OutputAtFrequencyOrInterval<MultiBlockGriddingAlgorithm2>(vm) {
   using namespace std::literals;
   {
     const ProgramOptions plenum_vm = GetOptions(vm, "Plenum");
@@ -236,7 +258,7 @@ LogProbesOutput::LogProbesOutput(const ProgramOptions& vm)
   }
 }
 
-void LogProbesOutput::operator()(const MultiBlockGriddingAlgorithm& grid) {
+void LogProbesOutput::operator()(const MultiBlockGriddingAlgorithm2& grid) {
   const std::ptrdiff_t n_tube_probes =
       static_cast<std::ptrdiff_t>(tube_probes_.size()) / n_tubes_ /
       AMREX_SPACEDIM;
@@ -255,7 +277,7 @@ void LogProbesOutput::operator()(const MultiBlockGriddingAlgorithm& grid) {
           static_cast<std::ptrdiff_t>(buffer.size()) / probes.extent(1));
       std::string filename = fmt::format("{}_{}.h5", tube_output_path_, i_block);
       if (!boost::filesystem::exists(filename)) {
-        CreateHdf5Database(filename, *tube, probes, states);
+        CreateHdf5Database(filename, *tube, probes, states, tube_fields_);
       } else if (boost::filesystem::is_regular_file(filename)) {
         OpenHdf5Database(filename, *tube, states);
       } else {
@@ -284,7 +306,7 @@ void LogProbesOutput::operator()(const MultiBlockGriddingAlgorithm& grid) {
           buffer.data(), probes.extent(1),
           static_cast<std::ptrdiff_t>(buffer.size()) / probes.extent(1));
       if (!boost::filesystem::exists(plenum_output_path_)) {
-        CreateHdf5Database(plenum_output_path_, *plenum, probes, states);
+        CreateHdf5Database(plenum_output_path_, *plenum, probes, states, plenum_fields_);
       } else if (boost::filesystem::is_regular_file(plenum_output_path_)) {
         OpenHdf5Database(plenum_output_path_, *plenum, states);
       } else {

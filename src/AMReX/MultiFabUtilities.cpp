@@ -27,6 +27,35 @@
 
 namespace fub::amrex {
 
+void Realloc(::amrex::MultiFab& mf, const ::amrex::BoxArray& ba,
+             const ::amrex::DistributionMapping& dm, int ncomp,
+             const ::amrex::IntVect& ngrow, const ::amrex::MFInfo& mf_info,
+             const ::amrex::FabFactory<::amrex::FArrayBox>& factory) {
+  if (mf.boxArray() != ba || mf.DistributionMap() != dm ||
+      mf.nComp() != ncomp || mf.nGrowVect() != ngrow) {
+    mf.define(ba, dm, ncomp, ngrow, mf_info, factory);
+  }
+}
+
+void ReallocLike(::amrex::MultiFab& mf, const ::amrex::MultiFab& other) {
+  if (other.ok()) {
+    Realloc(mf, other.boxArray(), other.DistributionMap(), other.nComp(),
+            other.nGrowVect(), ::amrex::MFInfo().SetArena(other.arena()),
+            other.Factory());
+  }
+}
+
+::amrex::MultiFab CopyMultiFab(const ::amrex::MultiFab& other) {
+  ::amrex::MultiFab mf(other.boxArray(), other.DistributionMap(), other.nComp(),
+                       other.nGrowVect(),
+                       ::amrex::MFInfo().SetArena(other.arena()),
+                       other.Factory());
+  ::amrex::MultiFab::Copy(mf, other, 0, 0, other.nComp(), other.nGrowVect());
+  return mf;
+}
+
+/// \brief get the inner box
+/// \param width number of cells
 ::amrex::Box GetInnerBox(const ::amrex::Box& box, int side, Direction dir,
                          int width) {
   const int dir_v = static_cast<int>(dir);
@@ -35,12 +64,12 @@ namespace fub::amrex {
   if (side == 0) {
     const ::amrex::IntVect lower_new = lower;
     ::amrex::IntVect upper_new = upper;
-    upper_new[dir_v] = lower_new[dir_v] + width;
+    upper_new[dir_v] = lower_new[dir_v] + width - 1;
     return ::amrex::Box(lower_new, upper_new);
   }
   const ::amrex::IntVect upper_new = upper;
   ::amrex::IntVect lower_new = lower;
-  lower_new[dir_v] = upper_new[dir_v] - width;
+  lower_new[dir_v] = upper_new[dir_v] - width + 1;
   return ::amrex::Box(lower_new, upper_new);
 }
 

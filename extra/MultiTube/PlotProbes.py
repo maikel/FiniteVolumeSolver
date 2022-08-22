@@ -2,6 +2,8 @@
 
 import h5py
 import numpy as np
+import matplotlib
+matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 import matplotlib.animation
 import os
@@ -22,7 +24,7 @@ def Load(path, chunk=[]):
     # @param dataset A string name of the main dataset containing the states data
     # @param times A string name of the time dataset containing all time points
     # @param chunk An optional [start, end] list that specifies how many time steps to load
-    file = h5py.File(path, "r")
+    file = h5py.File(path, "r", swmr=True)
     if chunk:
         data_array = np.array(file['data'][:,:,chunk[0]:chunk[1]])
         time_array = np.array(file['times'][chunk[0]:chunk[1]])
@@ -45,23 +47,28 @@ def MakePlot(dest, path, tube_id=0, variable=0, steps=[], time_interval=[]):
       data = data[:,:,iStart:iEnd]
       times = times[iStart:iEnd]
     fig, ax = plt.subplots()
-    for i in range(0, 5):
-        ax.plot(times, data[variable, tube_id*5 + i, :], label='P{}{}'.format(tube_id + 1, i + 1))
-    ax.legend()
-    path = Path(dest)
-    os.makedirs(path.parent, exist_ok=True)
+    ax.plot(times, data[variable, 0 + tube_id*5, :])
+    ax.plot(times, data[variable, 1 + tube_id*5, :])
+    ax.plot(times, data[variable, 2 + tube_id*5, :])
+    ax.plot(times, data[variable, 3 + tube_id*5, :])
+    ax.plot(times, data[variable, 4 + tube_id*5, :])
+    ax.set(xlim=[34.8e-3, 40e-3])
     fig.savefig(dest)
     fig.clf()
     return data, times
 
-slurm_id = '5672798'
+slurm_id = '5343973'
+# source = '/scratch/guttula/MultiTube_blocking/{}/MultiTube/Probes/Plenum.h5'.format(slurm_id)
+source = '/srv/public/Maikel/FiniteVolumeSolver/build_3D-Release/MultiTube2/Probes/Plenum.h5'
+#source = "/scratch/guttula/MultiTube/5097856/MultiTube/Probes/Plenum.h5"
+dest = "/srv/public/Maikel/FiniteVolumeSolver/extra/MultiTube/Pressure.png"
 variable = 16
 tube_id = 2
 source = '/scratch/guttula/MultiTube_blocking/{}/MultiTube/Probes/Plenum.h5'.format(slurm_id)
 # source = "/scratch/guttula/MultiTube/5097856/MultiTube/Probes/Plenum.h5"
 dest = '/home/guttula/FiniteVolumeSolver/extra/MultiTube/{}/Probes_pressure_{}.png'.format(slurm_id, tube_id)
 
-data, times = MakePlot(dest, source, tube_id=tube_id, variable=variable, steps=[0, 18000], time_interval=[19e-3, 24e-3])
+data, times = MakePlot(dest, source, tube_id=tube_id, variable=variable)
 
 # imax = [FindLargestGradient(data[16,i,:]) for i in range(0, 4)]
 # print('Largest gradient at i={} and t={}s'.format(imax[0], times[imax[0]]))

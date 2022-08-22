@@ -3,7 +3,7 @@ import math
 RunOptions = {
   'cfl': 0.8,
   # 'final_time': 0.2 / math.sqrt(101325.),
-  'final_time': 10.0,
+  'final_time': 50.0,
   # 'max_cycles': 1,
 }
 
@@ -46,7 +46,7 @@ Output = {
   'outputs': [{
     'type': 'HDF5',
     'path': paths[reconstruction],
-    'intervals': [0.1],
+    'intervals': [0.01],
     #'frequencies': [1],
   },{
     'type': 'CounterOutput',

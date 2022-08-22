@@ -70,7 +70,8 @@ GriddingAlgorithm::GriddingAlgorithm(PatchHierarchy hier,
   AmrMesh::verbose = options.verbose;
   AmrCore::verbose = options.verbose;
   AmrMesh::n_error_buf = ::amrex::Vector<::amrex::IntVect>(
-      static_cast<std::size_t>(AmrMesh::n_error_buf.size()), options.n_error_buf);
+      static_cast<std::size_t>(AmrMesh::n_error_buf.size()),
+      options.n_error_buf);
   if (hierarchy_.GetNumberOfLevels() > 0) {
     for (int i = 0; i < hierarchy_.GetNumberOfLevels(); ++i) {
       const std::size_t ii = static_cast<std::size_t>(i);
@@ -192,10 +193,11 @@ void GriddingAlgorithm::MakeNewLevelFromScratch(
   const DataDescription& desc = hierarchy_.GetDataDescription();
   if (hierarchy_.GetNumberOfLevels() == level) {
     hierarchy_.PushBack(PatchLevel(level, Duration(time_point), box_array,
-                                   distribution_mapping, desc));
+                                   distribution_mapping, desc,
+                                   hierarchy_.GetMFInfo()));
   } else {
     PatchLevel patch_level(level, Duration(time_point), box_array,
-                           distribution_mapping, desc);
+                           distribution_mapping, desc, hierarchy_.GetMFInfo());
     hierarchy_.GetPatchLevel(level) = std::move(patch_level);
   }
   PatchLevel& patch_level = hierarchy_.GetPatchLevel(level);
@@ -212,7 +214,8 @@ void GriddingAlgorithm::MakeNewLevelFromCoarse(
   const PatchLevel& coarse_level = hierarchy_.GetPatchLevel(level - 1);
   const int n_comps = hierarchy_.GetDataDescription().n_state_components;
   PatchLevel fine_level(level, Duration(time_point), box_array,
-                        distribution_mapping, hierarchy_.GetDataDescription());
+                        distribution_mapping, hierarchy_.GetDataDescription(),
+                        hierarchy_.GetMFInfo());
   const int cons_start = hierarchy_.GetDataDescription().first_cons_component;
   const int n_cons_components =
       hierarchy_.GetDataDescription().n_cons_components;
@@ -241,7 +244,7 @@ void GriddingAlgorithm::RemakeLevel(
       "GriddingAlgorithm::RemakeLevel");
   const DataDescription desc = hierarchy_.GetDataDescription();
   PatchLevel new_level(level_number, Duration(time_point), box_array,
-                       distribution_mapping, desc);
+                       distribution_mapping, desc, hierarchy_.GetMFInfo());
   FillMultiFabFromLevel(new_level.data, level_number);
   hierarchy_.GetPatchLevel(level_number) = std::move(new_level);
 }
@@ -251,8 +254,8 @@ void GriddingAlgorithm::ClearLevel([[maybe_unused]] int level) {
   hierarchy_.PopBack();
 }
 
-const AnyBoundaryCondition& GriddingAlgorithm::GetBoundaryCondition() const
-    noexcept {
+const AnyBoundaryCondition&
+GriddingAlgorithm::GetBoundaryCondition() const noexcept {
   return boundary_condition_;
 }
 

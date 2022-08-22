@@ -57,8 +57,8 @@ template <int Rank> IndexBox<Rank> AsIndexBox(const ::amrex::Box& box) {
 
   if constexpr (AMREX_SPACEDIM != Rank) {
     constexpr std::size_t sRank = static_cast<std::size_t>(Rank);
-    std::array<std::ptrdiff_t, sRank> lower1;
-    std::array<std::ptrdiff_t, sRank> upper1;
+    std::array<std::ptrdiff_t, sRank> lower1{};
+    std::array<std::ptrdiff_t, sRank> upper1{};
     std::copy_n(lower.begin(), Rank, lower1.begin());
     std::copy_n(upper.begin(), Rank, upper1.begin());
     return IndexBox<Rank>{lower1, upper1};

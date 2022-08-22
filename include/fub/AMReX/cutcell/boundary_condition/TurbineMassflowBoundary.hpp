@@ -59,7 +59,7 @@ struct RequireMassflow_SolveExactRiemannProblem {
   void operator()(EulerEquation& eq, Complete<EulerEquation>& expanded,
                   const Complete<EulerEquation>& source,
                   double required_massflow, double relative_surface_area,
-                  Direction dir) const noexcept;
+                  Direction dir) const;
 };
 } // namespace fub
 
@@ -100,16 +100,17 @@ struct TurbineMassflowBoundaryOptions {
 
 /// \ingroup BoundaryCondition
 ///
-/// This is an outflow boundary condition that models the massflow condition of
+/// \brief This is an outflow boundary condition that models the massflow condition of
 /// a turbine machine.
 ///
 /// The massflow is given by the relation
 ///
-///         \f$\dot{m} / A \cdot \frac{\sqrt{T_0}}{p_0} = \text{const}\f$
+/// \f$ \dot{m} / A \cdot \frac{\sqrt{T_0}}{p_0} = \text{const} \f$
 ///
-/// Therefore, for given surface area \f$A\f$, total pressure \f$p_0\f$ and
-/// total temperature \f$T_0\f$ one determines the required massflow \f$\dot
-/// m\f$ and recomputes the static pressure and temperature values.
+/// Therefore, for given surface area \f$A\f$, total pressure \f$p_0\f$ and total
+/// temperature \f$T_0\f$ one determines the required massflow \f$\dot m \f$ and
+/// recomputes the static pressure and temperature values.
+/// Details can be found in \cite Jirasek2006 .
 template <typename EulerEquation,
           typename Transform = RequireMassflow_SolveExactRiemannProblem>
 class TurbineMassflowBoundary {
@@ -181,7 +182,7 @@ TurbineMassflowBoundary<EulerEquation, Transform>::TurbineMassflowBoundary(
 template <typename EulerEquation, typename Transform>
 double
 TurbineMassflowBoundary<EulerEquation, Transform>::AverageRequiredMassflow(
-    ::amrex::MultiFab& mf, const GriddingAlgorithm& grid, int level) {
+    ::amrex::MultiFab& mf, const GriddingAlgorithm& /* grid */, int /* level */) {
   Complete local_state{equation_};
   double local_average_massflow = 0.0;
   const double n =
@@ -398,12 +399,16 @@ operator()(EulerEquation& eq, Complete<EulerEquation>& expanded,
   const double p = euler::Pressure(eq, source);
   const double gamma = euler::Gamma(eq, source);
   const double c = euler::SpeedOfSound(eq, source);
-  const double T = euler::Temperature(eq, source);
+  // const double T = euler::Temperature(eq, source);
   const double c2 = c * c;
   const int dir_v = static_cast<int>(dir);
-  const double u = prim.velocity[dir_v];
+  int ix = dir_v;
+  int iy = (dir_v + 1) % EulerEquation::Rank();
+  const double u = prim.velocity[ix];
+  const double v = prim.velocity[iy];
   const double u2 = u * u;
-  const double Ma2 = u2 / c2;
+  const double v2 = v * v;
+  const double Ma2 = ( u2 + v2 ) / c2;
 
   const double gammaMinus = gamma - 1.0;
   const double gammaMinusHalf = 0.5 * gammaMinus;
@@ -416,8 +421,8 @@ operator()(EulerEquation& eq, Complete<EulerEquation>& expanded,
   const double alpha_0 = 1.0 + Ma2 * gammaMinusHalf;
   const double p_0 = p * std::pow(alpha_0, gammaOverGammaMinus);
   const double rho_0 = rho * std::pow(alpha_0, gammaMinusInv);
-  const double T_0 = T * alpha_0;
-  const double c_02 = c2 + gammaMinusHalf * u2;
+  // const double T_0 = T * alpha_0;
+  const double c_02 = c2 + gammaMinusHalf * ( u2 + v2 );
   // const double c_0 = std::sqrt(c_02);
 
   // const int enable_massflow = (p_0 > options_.pressure_threshold);
@@ -426,21 +431,20 @@ operator()(EulerEquation& eq, Complete<EulerEquation>& expanded,
 
   const double alpha = gammaMinusHalf / c_02;
   const double beta = required_massflow / (relative_surface_area * rho_0);
-  auto f = [alpha, beta, gammaMinusInv](double u_n) {
-    return u_n * std::pow(1.0 - alpha * u_n * u_n, gammaMinusInv) - beta;
+  auto f = [alpha, beta, gammaMinusInv, v2](double u_n) {
+    return u_n * std::pow(1.0 - alpha * (u_n * u_n + v2), gammaMinusInv) - beta;
   };
-  auto Df = [alpha, gammaMinusInv](double u_n) {
-    const double x = 1.0 - alpha * u_n * u_n;
+  auto Df = [alpha, gammaMinusInv, v2](double u_n) {
+    const double x = 1.0 - alpha * (u_n * u_n + v2);
     return std::pow(x, gammaMinusInv) - 2.0 * alpha * u_n * u_n *
                                             gammaMinusInv *
                                             std::pow(x, gammaMinusInv - 1.0);
   };
   const double required_u = NewtonIteration(f, Df, u);
   // limit outflow velocity to a physically possible one
-  const double critical_speed_of_sound = std::sqrt(2.0 * c_02 / (gamma + 1.0));
-  const double required_laval =
-      std::min(required_u / critical_speed_of_sound, 1.0);
-  const double required_laval2 = required_laval * required_laval;
+  const double critical_speed_of_sound2 = 2.0 * c_02 / (gamma + 1.0);
+  const double required_laval2 =
+      std::min((required_u*required_u + v2) / critical_speed_of_sound2, 1.0);
 
   const double alpha_n = 1.0 - gammaMinus / gammaPlus * required_laval2;
   prim.density = rho_0 * std::pow(alpha_n, gammaMinusInv);
@@ -453,7 +457,7 @@ template <typename EulerEquation>
 void RequireMassflow_SolveExactRiemannProblem::
 operator()(EulerEquation& eq, Complete<EulerEquation>& expanded,
            const Complete<EulerEquation>& source, double required_massflow,
-           double relative_surface_area, Direction dir) const noexcept {
+           double relative_surface_area, Direction dir) const {
   Primitive<EulerEquation> prim(eq);
   PrimFromComplete(eq, prim, source);
   const double rho = euler::Density(eq, source);

@@ -30,7 +30,11 @@ template <typename Deleter> struct H5Handle {
   H5Handle& operator=(const H5Handle&) = delete;
 
   H5Handle(H5Handle&& other) noexcept : id_{std::exchange(other.id_, -1)} {}
-  H5Handle& operator=(H5Handle&& other) { id_ = std::exchange(other.id_, -1); }
+  H5Handle& operator=(H5Handle&& other) {
+    H5Handle tmp(std::move(*this));
+    id_ = std::exchange(other.id_, -1);
+    return *this;
+  }
 
   ~H5Handle() {
     if (id_ > 0) {
@@ -66,6 +70,12 @@ struct H5Adeleter {
   void operator()(hid_t attributes) const noexcept { H5Aclose(attributes); }
 };
 using H5Attribute = H5Handle<H5Adeleter>;
+
+struct H5Tdeleter {
+  using pointer = hid_t;
+  void operator()(hid_t attributes) const noexcept { H5Tclose(attributes); }
+};
+using H5Type = H5Handle<H5Tdeleter>;
 
 struct H5Pdeleter {
   using pointer = hid_t;

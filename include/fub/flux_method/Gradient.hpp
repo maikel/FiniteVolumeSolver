@@ -23,6 +23,9 @@
 
 #include "fub/Direction.hpp"
 #include "fub/State.hpp"
+#include "fub/StateUtil.hpp"
+#include "fub/StateArray.hpp"
+#include "fub/equations/EulerEquation.hpp"
 
 namespace fub {
 struct NoLimiter2 {
@@ -67,10 +70,11 @@ private:
   Limiter limiter_;
 };
 
-template <typename Equation,
+template <typename EquationT,
           typename GradientMethod = CentralDifferenceGradient<MinModLimiter>>
 class ConservativeGradient {
 public:
+  using Equation = EquationT;
   using Complete = ::fub::Complete<Equation>;
   using CompleteArray = ::fub::CompleteArray<Equation>;
   using Conservative = ::fub::Conservative<Equation>;
@@ -95,6 +99,8 @@ public:
   void ComputeGradient(GradientArray& dudx, span<const CompleteArray, 3> q,
                        double dx, Direction dir);
 
+  const Equation& GetEquation() const noexcept { return equation_; }
+
 private:
   Equation equation_{};
   Conservative dudx_L_{equation_};
@@ -108,6 +114,7 @@ template <typename EulerEquation,
           typename GradientMethod = CentralDifferenceGradient<MinModLimiter>>
 class PrimitiveGradient {
 public:
+  using Equation = EulerEquation;
   using Complete = ::fub::Complete<EulerEquation>;
   using CompleteArray = ::fub::CompleteArray<EulerEquation>;
   using Primitive = ::fub::Primitive<EulerEquation>;
@@ -132,6 +139,8 @@ public:
 
   void ComputeGradient(GradientArray& dudx, span<const CompleteArray, 3> q,
                        double dx, Direction dir);
+
+  const Equation& GetEquation() const noexcept { return equation_; }
 
 private:
   EulerEquation equation_{};
@@ -282,39 +291,45 @@ void PrimitiveGradient<Equation, GradientMethod>::ComputeGradient(
 }
 
 template <typename Equation>
-void ComputeAmplitudes(Characteristics<Equation>& amplitudes,
+void ComputeAmplitudes(const Equation& eq, Characteristics<Equation>& amplitudes,
                        const Primitive<Equation>& left,
                        const Primitive<Equation>& right, double rhoc,
                        double ooc2, double dx, int ix) {
+  const double M = std::sqrt(euler::MaSq(eq));
   const double dp = (right.pressure - left.pressure) / dx;
   const double du = (right.velocity[ix] - left.velocity[ix]) / dx;
   const double drho = (right.density - left.density) / dx;
-  amplitudes.minus = dp - rhoc * du;
-  amplitudes.plus = dp + rhoc * du;
+  amplitudes.minus = dp - M * rhoc * du;
+  amplitudes.plus = dp + M * rhoc * du;
   amplitudes.zero[0] = drho - ooc2 * dp;
   constexpr int Rank = Equation::Rank();
   for (int i = 1; i < Rank; ++i) {
     const int iy = (ix + i) % Rank;
     amplitudes.zero[i] = (right.velocity[iy] - left.velocity[iy]) / dx;
   }
-  if constexpr (fub::euler::state_with_species<Equation,
-                                               Primitive<Equation>>()) {
+  if constexpr (fub::euler::state_with_species<Primitive<Equation>>()) {
     for (int i = 0; i < amplitudes.species.size(); ++i) {
       amplitudes.species[i] = (right.species[i] - left.species[i]) / dx;
+    }
+  }
+  if constexpr (fub::euler::state_with_passive_scalars<Primitive<Equation>>()) {
+    for (int i = 0; i < amplitudes.passive_scalars.size(); ++i) {
+      amplitudes.passive_scalars[i] = (right.passive_scalars[i] - left.passive_scalars[i]) / dx;
     }
   }
 }
 
 template <typename Equation>
-void ComputeAmplitudes(CharacteristicsArray<Equation>& amplitudes,
+void ComputeAmplitudes(const Equation& eq, CharacteristicsArray<Equation>& amplitudes,
                        const PrimitiveArray<Equation>& left,
                        const PrimitiveArray<Equation>& right, Array1d rhoc,
                        Array1d ooc2, double dx, int ix) {
+  const Array1d Ma = Array1d::Constant(std::sqrt(euler::MaSq(eq)));
   const Array1d dp = (right.pressure - left.pressure) / dx;
   const Array1d du = (right.velocity.row(ix) - left.velocity.row(ix)) / dx;
   const Array1d drho = (right.density - left.density) / dx;
-  amplitudes.minus = dp - rhoc * du;
-  amplitudes.plus = dp + rhoc * du;
+  amplitudes.minus = dp - Ma * rhoc * du;
+  amplitudes.plus = dp + Ma * rhoc * du;
   amplitudes.zero.row(0) = drho - ooc2 * dp;
   constexpr int Rank = Equation::Rank();
   for (int i = 1; i < Rank; ++i) {
@@ -322,11 +337,16 @@ void ComputeAmplitudes(CharacteristicsArray<Equation>& amplitudes,
     amplitudes.zero.row(i) =
         (right.velocity.row(iy) - left.velocity.row(iy)) / dx;
   }
-  if constexpr (fub::euler::state_with_species<Equation,
-                                               Primitive<Equation>>()) {
+  if constexpr (fub::euler::state_with_species<Primitive<Equation>>()) {
     for (int i = 0; i < amplitudes.species.rows(); ++i) {
       amplitudes.species.row(i) =
           (right.species.row(i) - left.species.row(i)) / dx;
+    }
+  }
+  if constexpr (fub::euler::state_with_passive_scalars<Primitive<Equation>>()) {
+    for (int i = 0; i < amplitudes.passive_scalars.rows(); ++i) {
+      amplitudes.passive_scalars.row(i) =
+          (right.passive_scalars.row(i) - left.passive_scalars.row(i)) / dx;
     }
   }
 }
@@ -342,8 +362,8 @@ void CharacteristicsGradient<Equation, GradientMethod>::ComputeGradient(
   const Array1d c = q[1].speed_of_sound;
   const Array1d ooc2 = 1.0 / (c * c);
   const Array1d rhoc = rho * c;
-  ComputeAmplitudes(dKdx_L_array_, wL_array_, wM_array_, rhoc, ooc2, dx, ix);
-  ComputeAmplitudes(dKdx_R_array_, wM_array_, wR_array_, rhoc, ooc2, dx, ix);
+  ComputeAmplitudes(equation_, dKdx_L_array_, wL_array_, wM_array_, rhoc, ooc2, dx, ix);
+  ComputeAmplitudes(equation_, dKdx_R_array_, wM_array_, wR_array_, rhoc, ooc2, dx, ix);
   gradient_.ComputeGradient(dKdx, dKdx_L_array_, dKdx_R_array_);
 }
 
@@ -358,8 +378,8 @@ void CharacteristicsGradient<Equation, GradientMethod>::ComputeGradient(
   const double c = q[1].speed_of_sound;
   const double ooc2 = 1.0 / (c * c);
   const double rhoc = rho * c;
-  ComputeAmplitudes(dKdx_L_, wL_, wM_, rhoc, ooc2, dx, ix);
-  ComputeAmplitudes(dKdx_R_, wM_, wR_, rhoc, ooc2, dx, ix);
+  ComputeAmplitudes(equation_, dKdx_L_, wL_, wM_, rhoc, ooc2, dx, ix);
+  ComputeAmplitudes(equation_, dKdx_R_, wM_, wR_, rhoc, ooc2, dx, ix);
   gradient_.ComputeGradient(dKdx, dKdx_L_, dKdx_R_);
 }
 } // namespace fub

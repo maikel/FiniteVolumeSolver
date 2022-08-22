@@ -23,12 +23,21 @@
 
 #include <chrono>
 #include <cmath>
+#include <ostream>
 
 #include <boost/serialization/access.hpp>
 
 namespace fub {
 
-using Duration = std::chrono::duration<double>;
+struct Duration : std::chrono::duration<double> {
+  using std::chrono::duration<double>::duration;
+
+  Duration(const std::chrono::duration<double>& other) noexcept : duration(other) {}
+};
+
+inline std::ostream& operator<<(std::ostream& out, Duration dur) {
+  return out << dur.count() << " [s]";
+} 
 
 }
 

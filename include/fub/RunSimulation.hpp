@@ -25,6 +25,7 @@
 #include "fub/TimeStepError.hpp"
 #include "fub/core/assert.hpp"
 #include "fub/ext/ProgramOptions.hpp"
+#include "fub/ext/Version.hpp"
 
 #include "fub/counter/CounterRegistry.hpp"
 #include "fub/counter/Timer.hpp"
@@ -72,12 +73,11 @@ FormatTimeStepLine(std::ptrdiff_t cycle,
                    std::chrono::steady_clock::duration wall_time,
                    std::chrono::steady_clock::duration wall_time_difference);
 
-template <typename DestGrid, typename SrcGrid>
-void MakeBackup(std::shared_ptr<DestGrid>& dest,
-                const std::shared_ptr<SrcGrid>& src,
+template <typename Solver>
+void MakeBackup(std::optional<Solver>& dest, const Solver& src,
                 CounterRegistry& counter_database) {
   Timer counter = counter_database.get_timer("RunSimulation::MakeBackup");
-  dest = std::make_shared<DestGrid>(*src);
+  dest = src;
 }
 
 template <typename Solver,
@@ -90,25 +90,37 @@ void RunSimulation(Solver& solver, RunOptions options,
   using namespace logger::trivial;
   logger::sources::severity_logger<severity_level> log(
       logger::keywords::severity = info);
-  fub::Duration time_point = solver.GetTimePoint();
+  fub::Duration time_point = solver.GetGriddingAlgorithm()->GetTimePoint();
+
+  fub::git::PrintProgramVersion(log); // Print out version control stuff
+
   const fub::Duration eps = options.smallest_time_step_size;
   std::chrono::steady_clock::time_point now = std::chrono::steady_clock::now();
   std::chrono::steady_clock::duration wall_time = wall_time_reference - now;
-  using GriddingAlgorithm =
-      std::decay_t<decltype(*std::declval<Solver&>().GetGriddingAlgorithm())>;
   // Deeply copy the grid for a fallback scenario in case of time step errors
-  std::shared_ptr<GriddingAlgorithm> backup{};
+  std::optional<Solver> backup{};
+  auto counters = solver.GetCounterRegistry();
+  FUB_ASSERT(counters);
   if (options.do_backup) {
-    MakeBackup(backup, solver.GetGriddingAlgorithm(),
-               *solver.GetCounterRegistry());
+    Timer backup_counter = counters->get_timer("RunSimulation::MakeBackup");
+    backup = solver;
   }
   std::optional<Duration> failure_dt{};
   while (time_point + eps < options.final_time &&
-         (options.max_cycles < 0 || solver.GetCycles() < options.max_cycles)) {
+         (options.max_cycles < 0 || solver.GetGriddingAlgorithm()->GetCycles() < options.max_cycles)) {
     // We have a nested loop to exactly reach output time points.
     do {
+      Timer timestep_counter =
+          counters->get_timer("RunSimulation::WholeTimeStep");
       const fub::Duration next_output_time = output.NextOutputTime(time_point);
+
+      std::optional<Timer> pre_advance_counter =
+          counters->get_timer("RunSimulation::PreAdvanceHierarchy");
       solver.PreAdvanceHierarchy();
+      pre_advance_counter.reset();
+
+      std::optional<Timer> compute_stable_dt_counter =
+          counters->get_timer("RunSimulation::ComputeStableDt");
       // Compute the next time step size. If an estimate is available from a
       // prior failure we use that one.
       const fub::Duration stable_dt =
@@ -117,10 +129,14 @@ void RunSimulation(Solver& solver, RunOptions options,
       const fub::Duration limited_dt =
           std::min({options.final_time - time_point,
                     next_output_time - time_point, options.cfl * stable_dt});
+      compute_stable_dt_counter.reset();
 
+      std::optional<Timer> advance_hierarchy_counter =
+          counters->get_timer("RunSimulation::AdvanceHierarchy");
       // Advance the hierarchy in time!
       boost::outcome_v2::result<void, TimeStepTooLarge> result =
           solver.AdvanceHierarchy(limited_dt);
+      advance_hierarchy_counter.reset();
 
       if (result.has_error() && options.do_backup) {
         // If the solver returned with an error, reduce the time step size with
@@ -132,8 +148,7 @@ void RunSimulation(Solver& solver, RunOptions options,
             "was too large.\nRestarting this time step with a "
             "smaller coarse time step size (dt_new = {}s).\n",
             limited_dt.count(), options.cfl * failure_dt->count());
-        solver.ResetHierarchyConfiguration(backup);
-        MakeBackup(backup, backup, *solver.GetCounterRegistry());
+        solver = *backup;
       } else if (result.has_error() && !options.do_backup) {
         BOOST_LOG_SCOPED_LOGGER_TAG(log, "Time", time_point.count());
         BOOST_LOG_SEV(log, error) << fmt::format(
@@ -142,7 +157,10 @@ void RunSimulation(Solver& solver, RunOptions options,
             limited_dt.count());
         return;
       } else {
+        std::optional<Timer> post_advance_hierarchy_counter =
+            counters->get_timer("RunSimulation::PostAdvanceHierarchy");
         solver.PostAdvanceHierarchy(limited_dt);
+        post_advance_hierarchy_counter.reset();
         // If advancing the hierarchy was successfull print a successful time
         // step line and reset any failure indicators.
         now = std::chrono::steady_clock::now();
@@ -157,14 +175,16 @@ void RunSimulation(Solver& solver, RunOptions options,
                                              wall_time_difference);
         failure_dt.reset();
         if (options.do_backup) {
-          MakeBackup(backup, solver.GetGriddingAlgorithm(),
-                     *solver.GetCounterRegistry());
+          Timer counter = solver.GetCounterRegistry()->get_timer(
+              "RunSimulation::MakeBackup");
+          backup = solver;
         }
       }
     } while (
         time_point + eps < options.final_time &&
         (options.max_cycles < 0 || solver.GetCycles() < options.max_cycles) &&
         !output.ShallOutputNow(*solver.GetGriddingAlgorithm()));
+    auto output_timer = solver.GetCounterRegistry()->get_timer("Output");
     output(*solver.GetGriddingAlgorithm());
   }
   // return solver;

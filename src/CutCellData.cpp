@@ -19,8 +19,73 @@
 // SOFTWARE.
 
 #include "fub/CutCellData.hpp"
+#include "fub/PatchDataView.hpp"
+
+#include <CGAL/Boolean_set_operations_2.h>
+#include <CGAL/Polygon_2.h>
+#include <CGAL/Polygon_2_algorithms.h>
+#include <CGAL/Polygon_with_holes_2.h>
+#include <CGAL/Simple_cartesian.h>
+#include <CGAL/convex_hull_2.h>
 
 namespace fub {
+
+using K = CGAL::Exact_predicates_exact_constructions_kernel;
+using Point_2 = K::Point_2;
+using Polygon_2 = CGAL::Polygon_2<K>;
+using Polygon_with_holes_2 = CGAL::Polygon_with_holes_2<K>;
+
+namespace {
+HGridIntegrationPoints<2> GetHGridIntegrationPoints_(PatchDataView<const double, 3> source, const CutCellData<2>& geom, Index<2> index, const Coordinates<2>& dx)
+{
+  HGridIntegrationPoints<2> integration_points{};
+  integration_points.iB = index;
+  integration_points.xB = GetAbsoluteBoundaryCentroid(geom, index, dx);
+  for (int i = 0; i < HGridIntegrationPoints<2>::kMaxSources; ++i) {
+    integration_points.volume[i] = source(index, i*5 + 0);
+    integration_points.xM[i][0] = source(index, i*5 + 1);
+    integration_points.xM[i][1] = source(index, i*5 + 2);
+
+    const double* ptr_x = &source(index, i*5 + 3);
+    std::memcpy(&integration_points.index[i][0], ptr_x, sizeof(double));
+
+    const double* ptr_y = &source(index, i*5 + 4);
+    std::memcpy(&integration_points.index[i][1], ptr_y, sizeof(double));
+  }
+  return integration_points;
+}
+}
+
+HGridIntegrationPoints<2> GetHGridIntegrationPoints(const CutCellData<2>& geom, Index<2> index, const Coordinates<2>& dx, Direction dir)
+{
+  const auto d = static_cast<std::size_t>(dir);
+  return GetHGridIntegrationPoints_(geom.hgrid_integration_points[d], geom, index, dx);
+}
+
+HGridIntegrationPoints<2> GetHGridTotalInnerIntegrationPoints(const CutCellData<2>& geom, Index<2> index, const Coordinates<2>& dx)
+{
+  return GetHGridIntegrationPoints_(geom.hgrid_total_inner_integration_points, geom, index, dx);
+}
+
+
+Coordinates<2> Centroid(const HGridIntegrationPoints<2>& integration)
+{
+  K::FT total_area = 0;
+  K::FT total_center_x = 0;
+  K::FT total_center_y = 0;
+  constexpr auto size = HGridIntegrationPoints<2>::kMaxSources;
+  for (int i = 0; i < size && integration.volume[i] > 0.0; ++i)
+  {
+    total_center_x += integration.volume[i] * integration.xM[i][0];
+    total_center_y += integration.volume[i] * integration.xM[i][1];
+    total_area += integration.volume[i];
+  }
+  total_center_x /= total_area;
+  total_center_y /= total_area;
+  const double x = total_center_x.exact().convert_to<double>();
+  const double y = total_center_y.exact().convert_to<double>();
+  return Coordinates<2>{x, y};
+}
 
 Eigen::Vector2d GetBoundaryNormal(const CutCellData<2>& ccdata,
                                   const std::array<std::ptrdiff_t, 2>& index) {
@@ -73,7 +138,7 @@ Eigen::Vector3d GetVolumeCentroid(const CutCellData<3>& ccdata,
   return centroid;
 }
 
-Eigen::Vector2d GetUnshieldedCentroid(const CutCellData<2>& geom,
+Eigen::Vector2d GetAbsoluteUnshieldedCentroid(const CutCellData<2>& geom,
                                       const Index<2>& face,
                                       const Eigen::Vector2d& dx,
                                       Direction dir)
@@ -117,6 +182,45 @@ Eigen::Vector2d GetUnshieldedCentroid(const CutCellData<2>& geom,
   return centroid;
 }
 
+Eigen::Vector2d
+GetAbsoluteSinglyShieldedFromRightVolumeCentroid(const CutCellData<2>& geom,
+                                    const Index<2>& face, Side side,
+                                    Direction dir, const Eigen::Vector2d& dx)
+{
+  const Index<2> iR = RightTo(face, dir);
+  FUB_ASSERT(IsCutCell(geom, iR));
+  Eigen::Vector2d xB = GetAbsoluteBoundaryCentroid(geom, iR, dx);
+  const auto d = static_cast<std::size_t>(dir);
+  FUB_ASSERT(geom.shielded_right_fractions[d](face) > 0.0);
+  const double alpha = 0.5 + geom.boundary_centeroids(iR, d);
+  FUB_ASSERT(side == Side::Lower || side == Side::Upper);
+  if (side == Side::Upper) {
+    xB[d] -= 0.5 * alpha * dx[d];
+  } else if (side == Side::Lower) {
+    xB[d] -= (0.5 + alpha) * dx[d];
+  }
+  return xB;
+}
+
+Eigen::Vector2d
+GetAbsoluteSinglyShieldedFromLeftVolumeCentroid(const CutCellData<2>& geom,
+                                    const Index<2>& face, Side side,
+                                    Direction dir, const Eigen::Vector2d& dx)
+{
+  const Index<2> iL = LeftTo(face, dir, 1);
+  FUB_ASSERT(IsCutCell(geom, iL));
+  Eigen::Vector2d xB = GetAbsoluteBoundaryCentroid(geom, iL, dx);
+  const auto d = static_cast<std::size_t>(dir);
+  FUB_ASSERT(geom.shielded_left_fractions[d](face) > 0.0);
+  const double alpha = 0.5 - geom.boundary_centeroids(iL, d);
+  FUB_ASSERT(side == Side::Lower || side == Side::Upper);
+  if (side == Side::Lower) {
+    xB[d] += 0.5 * alpha * dx[d];
+  } else if (side == Side::Upper) {
+    xB[d] += (0.5 + alpha) * dx[d];
+  }
+  return xB;
+}
 
 namespace {
 template <int Rank>

@@ -49,7 +49,7 @@ public:
   void
   ResetHierarchyConfiguration(const std::shared_ptr<GriddingAlgorithm>& grid);
 
-  Duration ComputeStableDt(int level);
+  Duration ComputeStableDt(const IntegratorContext&, int level);
 
   Result<void, TimeStepTooLarge>
   AdvanceLevel(IntegratorContext& simulation_data, int level, Duration dt,

@@ -42,7 +42,7 @@ AxialSourceTerm::AxialSourceTerm(const AxialSourceTerm& other)
     const int ngrow = other_Ax.nGrow();
     ::amrex::MultiFab& Ax =
         Ax_.emplace_back(box_array, distribution_map, ncomp, ngrow);
-    Ax.copy(other_Ax);
+    Ax.ParallelCopy(other_Ax);
   }
 }
 
@@ -85,7 +85,7 @@ void AxialSourceTerm::ResetHierarchyConfiguration(
   Ax_ = ComputeDiameters(*grid, diameter_);
 }
 
-Duration AxialSourceTerm::ComputeStableDt(int /* level */) {
+Duration AxialSourceTerm::ComputeStableDt(const IntegratorContext&, int /* level */) {
   return Duration(std::numeric_limits<double>::max());
 }
 

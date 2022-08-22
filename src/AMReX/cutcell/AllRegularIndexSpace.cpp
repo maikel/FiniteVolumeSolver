@@ -43,7 +43,7 @@ AllRegularIndexSpace::AllRegularIndexSpace(const ::amrex::Geometry& geom,
   n_grows_.push_back(ngrow_finest);
   levels_.reserve(static_cast<std::size_t>(max_coarsening_level + 1));
   levels_.emplace_back(this, gshop, geom, ::amrex::EB2::max_grid_size,
-                       ngrow_finest, false);
+                       ngrow_finest, false, 0);
 
   for (int ilev = 1; ilev <= max_coarsening_level; ++ilev) {
     bool coarsenable = geometries_.back().Domain().coarsenable(refine_ratio);

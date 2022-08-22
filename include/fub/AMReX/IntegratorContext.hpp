@@ -36,11 +36,23 @@
 namespace fub::amrex {
 
 /// \defgroup IntegratorContext Integrator Contexts
-/// \brief This group summarizes all classes and functions that are realted to integrator contexts.
+/// \brief This group summarizes all classes and functions that are realted to
+/// integrator contexts.
 
 class IntegratorContext;
 
 using HyperbolicMethod = ::fub::HyperbolicMethod<IntegratorContext>;
+
+struct IntegratorContextOptions {
+  IntegratorContextOptions() = default;
+  IntegratorContextOptions(const ProgramOptions& options);
+
+  void Print(SeverityLogger& log) const;
+
+  int scratch_gcw{4};
+  int flux_gcw{2};
+  int regrid_frequency{1};
+};
 
 /// \ingroup IntegratorContext
 ///
@@ -48,13 +60,15 @@ using HyperbolicMethod = ::fub::HyperbolicMethod<IntegratorContext>;
 /// delegates AMR related tasks to the AMReX library.
 class IntegratorContext {
 public:
+  using FeedbackFn = std::function<void(IntegratorContext&, Duration)>;
   /// @{
   /// \name Constructors, Assignment Operators and Desctructor
 
   /// \brief Constructs a context object from given a gridding algorithm and a
   /// numerical method.
-  IntegratorContext(std::shared_ptr<GriddingAlgorithm> gridding,
-                    HyperbolicMethod method);
+  IntegratorContext(
+      std::shared_ptr<GriddingAlgorithm> gridding, HyperbolicMethod method,
+      const IntegratorContextOptions& options = IntegratorContextOptions());
 
   IntegratorContext(std::shared_ptr<GriddingAlgorithm> gridding,
                     HyperbolicMethod method, int cell_gcw, int face_gcw);
@@ -94,6 +108,12 @@ public:
 
   /// \brief Returns the MPI communicator which is associated with this context.
   [[nodiscard]] MPI_Comm GetMpiCommunicator() const noexcept;
+
+  /// \brief Returns the integrator context options
+  const IntegratorContextOptions& GetOptions() const noexcept;
+
+  /// \brief Returns the method components
+  const HyperbolicMethod& GetHyperbolicMethod() const noexcept;
   /// @}
 
   /// @{
@@ -167,13 +187,23 @@ public:
 
   /// \brief Sets the time point for a specific level number and direction.
   void SetTimePoint(Duration t, int level);
+
+  /// \brief Sets a feedback function that will be called in
+  /// PostAdvanceHierarchy.
+  ///
+  /// This is used to inject user defined behaviour after each time step
+  void SetPostAdvanceHierarchyFeedback(FeedbackFn feedback);
   /// @}
 
   /// @{
   /// \name Member functions relevant for the level integrator algorithm.
 
+  void PreAdvanceHierarchy();
+
   /// \brief Updates time point and cycle counter for the patch hierarchy.
-  void PostAdvanceHierarchy();
+  void PostAdvanceHierarchy(Duration dt);
+
+  void PreSplitStep(int level, Duration dt, Direction dir, std::pair<int, int> subcycle);
 
   /// \brief On each first subcycle this will regrid the data if neccessary.
   ///
@@ -194,6 +224,7 @@ public:
   ///
   /// \param level  The refinement level on which the boundary condition shall
   /// be used.
+  /// \param dir The dimensional split direction which will be used.
   void ApplyBoundaryCondition(int level, Direction dir);
   void ApplyBoundaryCondition(int level, Direction dir,
                               AnyBoundaryCondition& bc);
@@ -212,6 +243,9 @@ public:
   /// \brief Returns a estimate for a stable time step size which can be taken
   /// for specified level number in direction dir.
   [[nodiscard]] Duration ComputeStableDt(int level, Direction dir);
+  void
+  SetComputeStableDt(std::function<Duration(IntegratorContext&, int, Direction)>
+                         compute_stable_dt);
 
   /// \brief Fill the flux MultiFab with numeric fluxes based on current states
   /// in scratch.
@@ -246,8 +280,8 @@ private:
   /// \brief This class holds auxiliary data on each refinement level.
   struct LevelData {
     LevelData() = default;
-    LevelData(const LevelData& other) = delete;
-    LevelData& operator=(const LevelData& other) = delete;
+    LevelData(const LevelData& other);
+    LevelData& operator=(const LevelData& other);
     LevelData(LevelData&&) noexcept = default;
     LevelData& operator=(LevelData&&) noexcept;
     ~LevelData() noexcept = default;
@@ -270,11 +304,13 @@ private:
     std::ptrdiff_t cycles{};
   };
 
-  int cell_ghost_cell_width_;
-  int face_ghost_cell_width_{cell_ghost_cell_width_};
+  IntegratorContextOptions options_;
   std::shared_ptr<GriddingAlgorithm> gridding_;
   std::vector<LevelData> data_;
   HyperbolicMethod method_;
+  FeedbackFn post_advance_hierarchy_feedback_;
+  std::function<Duration(IntegratorContext&, int, Direction)>
+      user_compute_stable_dt_{};
 };
 
 } // namespace fub::amrex

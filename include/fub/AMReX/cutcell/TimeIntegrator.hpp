@@ -35,6 +35,10 @@ struct TimeIntegrator {
 struct TimeIntegrator2 {
   static void UpdateConservatively(IntegratorContext& context, int level,
                                    Duration dt, Direction dir);
+
+  static void UpdateConservatively(::amrex::MultiFab& dest, const ::amrex::MultiFab& src,
+                                   IntegratorContext& context, int level,
+                                   Duration dt, Direction dir);
 };
 
 } // namespace fub::amrex::cutcell

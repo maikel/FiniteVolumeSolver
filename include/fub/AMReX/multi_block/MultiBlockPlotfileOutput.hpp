@@ -23,6 +23,7 @@
 
 #include "fub/AMReX/multi_block/MultiBlockGriddingAlgorithm.hpp"
 #include "fub/AMReX/multi_block/MultiBlockGriddingAlgorithm2.hpp"
+#include "fub/equations/EulerEquation.hpp"
 #include "fub/ext/ProgramOptions.hpp"
 #include "fub/output/OutputAtFrequencyOrInterval.hpp"
 
@@ -45,7 +46,9 @@ template <typename TubeEquation, typename PlenumEquation>
 class MultiBlockPlotfileOutput2
     : public OutputAtFrequencyOrInterval<MultiBlockGriddingAlgorithm2> {
 public:
-  MultiBlockPlotfileOutput2(const std::map<std::string, pybind11::object>& vm, const TubeEquation& tube_equation, const PlenumEquation& plenum_equation);
+  MultiBlockPlotfileOutput2(const std::map<std::string, pybind11::object>& vm,
+                            const TubeEquation& tube_equation,
+                            const PlenumEquation& plenum_equation);
 
   void operator()(const MultiBlockGriddingAlgorithm2& grid) override;
 
@@ -56,9 +59,12 @@ private:
 };
 
 template <typename TubeEquation, typename PlenumEquation>
-MultiBlockPlotfileOutput2<TubeEquation, PlenumEquation>::MultiBlockPlotfileOutput2(
-    const std::map<std::string, pybind11::object>& vm, const TubeEquation& tube_equation, const PlenumEquation& plenum_equation)
-    : OutputAtFrequencyOrInterval<MultiBlockGriddingAlgorithm2>(vm), tube_equation_(tube_equation), plenum_equation_(plenum_equation) {
+MultiBlockPlotfileOutput2<TubeEquation, PlenumEquation>::
+    MultiBlockPlotfileOutput2(const std::map<std::string, pybind11::object>& vm,
+                              const TubeEquation& tube_equation,
+                              const PlenumEquation& plenum_equation)
+    : OutputAtFrequencyOrInterval<MultiBlockGriddingAlgorithm2>(vm),
+      tube_equation_(tube_equation), plenum_equation_(plenum_equation) {
   parent_path_ = GetOptionOr(vm, "directory", std::string("."));
 }
 
@@ -80,10 +86,10 @@ operator()(const MultiBlockGriddingAlgorithm2& grid) {
     std::string name =
         fmt::format("{}/Tube{}/plt{:09}", parent_path_, i, grid.GetCycles());
     BOOST_LOG(log) << fmt::format("Write Plotfile output to '{}'.", name);
-    WritePlotFile(name, grid.GetTubes()[i]->GetPatchHierarchy(), tube_equation_);
+    WritePlotFile(name, grid.GetTubes()[i]->GetPatchHierarchy(),
+                  tube_equation_);
   }
 }
-
 
 } // namespace fub::amrex
 

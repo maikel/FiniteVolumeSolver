@@ -22,7 +22,7 @@
 #define FUB_AMREX_MULTI_BLOCK_IGNITE_DETONATION_HPP
 
 #include "fub/AMReX/IgniteDetonation.hpp"
-#include "fub/AMReX/multi_block/MultiBlockIntegratorContext.hpp"
+#include "fub/AMReX/multi_block/MultiBlockIntegratorContext2.hpp"
 
 #include <boost/serialization/access.hpp>
 #include <boost/serialization/vector.hpp>
@@ -43,17 +43,11 @@ public:
                              std::size_t n_tubes, int max_refinement_level,
                              const std::vector<IgniteDetonationOptions>& opts);
 
-  void ResetHierarchyConfiguration(
-      const std::shared_ptr<MultiBlockGriddingAlgorithm>& grid);
-
-  [[nodiscard]] static Duration ComputeStableDt(int level) noexcept;
+  [[nodiscard]] static Duration ComputeStableDt(const MultiBlockIntegratorContext2&, int level) noexcept;
 
   [[nodiscard]] Result<void, TimeStepTooLarge>
-  AdvanceLevel(MultiBlockIntegratorContext& context, int level, Duration dt,
+  AdvanceLevel(MultiBlockIntegratorContext2& context, int level, Duration dt,
                const ::amrex::IntVect& ngrow = ::amrex::IntVect(0));
-
-  [[nodiscard]] std::vector<Duration> GetNextIgnitionTimePoints() const;
-  void SetNextIgnitionTimePoints(span<const Duration> timepoints);
 
 private:
   std::vector<IgniteDetonation> source_terms_;
@@ -62,7 +56,9 @@ private:
   friend class boost::serialization::access;
   template <class Archive>
   void serialize(Archive& ar, unsigned int /* version */) {
-    ar& source_terms_;
+    for (auto&& source_term : source_terms_) {
+      ar & source_term;
+    }
   }
 };
 

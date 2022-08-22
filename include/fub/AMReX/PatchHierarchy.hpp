@@ -112,7 +112,8 @@ struct PatchLevel {
   /// \param dm  the distribution mapping for the array
   /// \param n_components the number of components of the array
   PatchLevel(int num, Duration tp, const ::amrex::BoxArray& ba,
-             const ::amrex::DistributionMapping& dm, int n_components);
+             const ::amrex::DistributionMapping& dm, int n_components,
+             const ::amrex::MFInfo& mf_info = ::amrex::MFInfo());
 
   /// \brief Allocates arrays with specified box array and distribution mapping.
   ///
@@ -120,10 +121,10 @@ struct PatchLevel {
   /// \param tp  the time point of the simulation
   /// \param ba  the box array of the distributed array
   /// \param dm  the distribution mapping for the array
-  /// \param n_components the number of components of the array
   PatchLevel(int num, Duration tp, const ::amrex::BoxArray& ba,
              const ::amrex::DistributionMapping& dm,
-             const DataDescription& desc);
+             const DataDescription& desc,
+             const ::amrex::MFInfo& mf_info = ::amrex::MFInfo());
 
   /// Allocates arrays with specified box array and distribution mapping.
   ///
@@ -135,6 +136,7 @@ struct PatchLevel {
   /// \param factory the FAB factory, important with EB.
   PatchLevel(int num, Duration tp, const ::amrex::BoxArray& ba,
              const ::amrex::DistributionMapping& dm, int n_components,
+             const ::amrex::MFInfo& mf_info,
              const ::amrex::FabFactory<::amrex::FArrayBox>& factory);
 
   int level_number{};
@@ -185,11 +187,11 @@ public:
 
   [[nodiscard]] int GetMaxNumberOfLevels() const noexcept;
 
-  [[nodiscard]] int GetRatioToCoarserLevel(int level, Direction dir) const
-      noexcept;
+  [[nodiscard]] int GetRatioToCoarserLevel(int level,
+                                           Direction dir) const noexcept;
 
-  [[nodiscard]] ::amrex::IntVect GetRatioToCoarserLevel(int level) const
-      noexcept;
+  [[nodiscard]] ::amrex::IntVect
+  GetRatioToCoarserLevel(int level) const noexcept;
 
   [[nodiscard]] PatchLevel& GetPatchLevel(int level);
 
@@ -197,7 +199,7 @@ public:
 
   /// \brief Returns a Geometry object for a specified level.
   ///
-  /// \param[in] The refinement level number for this geometry obejct.
+  /// \param[in] level The refinement level number for this geometry object.
   [[nodiscard]] const ::amrex::Geometry& GetGeometry(int level) const;
 
   /// \brief Returns the hierarchy of Geometry objects.
@@ -209,6 +211,11 @@ public:
   /// \brief Returns the hierarchy of DistributionMapping objects.
   [[nodiscard]] const ::amrex::Vector<::amrex::DistributionMapping>
   GetDistributionMappings() const;
+
+  void SetArena(::amrex::Arena* arena);
+
+  /// \brief Returns the underlying pointer to Arena for allocating data
+  [[nodiscard]] const ::amrex::MFInfo& GetMFInfo() const noexcept { return mf_info_; }
 
   /// \brief Returns the hierarchy of MultiFabs representing the data.
   [[nodiscard]] const ::amrex::Vector<const ::amrex::MultiFab*> GetData() const;
@@ -228,8 +235,12 @@ public:
   GetCounterRegistry() const noexcept;
 
   /// \brief Returns a shared pointer to the debug storage.
-  [[nodiscard]] const std::shared_ptr<DebugStorage>& GetDebugStorage() const
-      noexcept;
+  [[nodiscard]] const std::shared_ptr<DebugStorage>&
+  GetDebugStorage() const noexcept;
+  
+  fub::Duration const GetStabledt() const noexcept;
+
+  void SetStabledt(fub::Duration dt);
 
   void SetCounterRegistry(std::shared_ptr<CounterRegistry> registry);
 
@@ -240,8 +251,10 @@ private:
   std::vector<PatchLevel> patch_level_;
   std::vector<::amrex::Geometry> patch_level_geometry_;
   std::vector<const ::amrex::EB2::IndexSpace*> index_spaces_;
+  ::amrex::MFInfo mf_info_{};
   std::shared_ptr<CounterRegistry> registry_;
   std::shared_ptr<DebugStorage> debug_storage_;
+  fub::Duration stable_dt_{};
 };
 
 template <typename Equation>
@@ -378,9 +391,10 @@ void WriteTubeData(const std::string& filename, const PatchHierarchy& hierarchy,
                    const IdealGasMix<1>& eq, fub::Duration time_point,
                    std::ptrdiff_t cycle_number, MPI_Comm comm);
 
-void WriteToHDF5(const std::string& name, const ::amrex::FArrayBox& fab,
-                 const ::amrex::Geometry& geom, Duration time_point,
-                 std::ptrdiff_t cycle) noexcept;
+void WriteToHDF5(
+    const std::string& name, const ::amrex::FArrayBox& fab,
+    const ::amrex::Geometry& geom, Duration time_point, std::ptrdiff_t cycle,
+    span<const std::string> fields = span<const std::string>{}) noexcept;
 
 template <typename Log> void PatchHierarchyOptions::Print(Log& log) {
   std::array<int, AMREX_SPACEDIM> ref_ratio{};

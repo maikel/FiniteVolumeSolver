@@ -1,32 +1,35 @@
 import math
 
-plenum_x_n_cells = 64
+tube_n_cells = 256
+# plenum_x_n_cells = 128
 tube_blocking_factor = 8
 plenum_blocking_factor = 8
 
+massflow_cor = 0.24 #%MASSFLOW%
+diffusion = 3.0 #%Diffusion%
+outputPath = 'SEC_Plenum_Arrhenius' # '%OUTPUT%'
 
 mode = 3 #%MODE%
 boundary_condition = 'TurbineMassflowBoundaries' # '%BOUNDARY_CONDITION%'
 
 n_level = 1
 
-n_tubes = 6
 r_tube = 0.015
 
 D = 2.0 * r_tube
 
-r_inner = 0.5 * 0.130
-r_outer = 0.5 * 0.2
-r_tube_center = 2.0 * r_inner
-alpha = 2.0 * math.pi / n_tubes
-
 inlet_length = 3.0 * D # [m]
 
-plenum_x_upper = 0.1
+plenum_y_lower = - 0.5
+plenum_y_upper = + 0.5
+plenum_y_length = plenum_y_upper - plenum_y_lower
+
+TVolRPlen = 20.0 * D
+plenum_x_upper = TVolRPlen / plenum_y_length
 plenum_x_lower = -inlet_length
 plenum_x_length = plenum_x_upper - plenum_x_lower
 
-plenum_length = plenum_x_length # [m]
+plenum_length = plenum_x_upper # [m]
 tube_length = 1.0 # [m]
 
 plenum_max_grid_size = max(plenum_blocking_factor, 1024)
@@ -35,10 +38,11 @@ plenum_domain_length = plenum_length + inlet_length
 tube_domain_length = tube_length - inlet_length
 
 tube_over_plenum_length_ratio = tube_domain_length / plenum_domain_length
+plenum_over_tube_length_ratio = 1.0 / tube_over_plenum_length_ratio
 
-plenum_y_lower = - 0.5
-plenum_y_upper = + 0.5
-plenum_y_length = plenum_y_upper - plenum_y_lower
+plenum_x_n_cells = tube_n_cells * plenum_over_tube_length_ratio
+plenum_x_n_cells -= plenum_x_n_cells % plenum_blocking_factor
+plenum_x_n_cells = int(plenum_x_n_cells)
 
 plenum_z_lower = plenum_y_lower
 plenum_z_upper = plenum_y_upper
@@ -56,37 +60,110 @@ plenum_z_n_cells = plenum_x_n_cells * plenum_z_over_x_ratio
 plenum_z_n_cells -= plenum_z_n_cells % plenum_blocking_factor
 plenum_z_n_cells = int(plenum_z_n_cells)
 
-tube_n_cells = plenum_x_n_cells * tube_over_plenum_length_ratio
-tube_n_cells -= tube_n_cells % tube_blocking_factor
-tube_n_cells = int(tube_n_cells)
+# tube_n_cells = plenum_x_n_cells * tube_over_plenum_length_ratio
+# tube_n_cells -= tube_n_cells % tube_blocking_factor
+# tube_n_cells = int(tube_n_cells)
+
+# y0s = [-1.0/3.0, 0.0, +1.0/3.0]
+y0s = [0.0]
+n_tubes = len(y0s)
 
 RunOptions = {
-  'cfl': 0.8,
-  'final_time': 150.0,
+  'cfl': 0.1,# / float(tube_n_cells / 64),
+  'final_time': 100.0,
   'max_cycles': -1,
   'do_backup': 0
+}
+
+LogOptions = {
+  'file_template': '{}/000.log'.format(outputPath),
+  'channel_blacklist': ['TurbineMassflowBoundary']
 }
 
 FluxMethod = {
   # HLLEM, HLLEM_Larrouturou
   'base_method': 'HLLEM_Larrouturou',
   # Upwind, MinMod, VanLeer
-  'limiter': 'Upwind',
+  'limiter': 'MinMod',
   # Conservative, Primitive, Characteristics
   'reconstruction': 'Characteristics'
 }
 
-# checkpoint = '/Users/maikel/Development/FiniteVolumeSolver/build_3d/MultiTube/Checkpoint/000000063'
+R = 1.0
+gamma = 1.4
+
+Equation = {
+  'Rspec': R,
+  'gamma': gamma
+}
+
+T1ovT0 = 1.889
+EaovRT1  = 10.0
+
+ArrheniusKinetics = {
+  'Q': 10.0/(gamma-1.0),
+  'EA': EaovRT1 * T1ovT0,
+  'B': (0.11/1.25)*math.exp(EaovRT1*(1.0-T1ovT0)),
+  'T_switch': 1.6,
+}
+
+DiffusionSourceTerm = {
+  'mul': diffusion
+}
+R_ref = 287.
+p_ref = 101325.
+T_ref = 300.
+L_ref = 1.0
+rho_ref = p_ref / T_ref / R_ref
+u_ref = math.sqrt(p_ref / rho_ref)
+t_ref = L_ref / u_ref
+# ud->Msq =  u_ref*u_ref / (R_gas*T_ref);
+
+p0 = 2.0
+rho0 = math.pow(p0, 1.0 / gamma)
+T0 = p0 / rho0
+p = 0.95 * p0
+# T = T0 + ArrheniusKinetics['Q'] * (gamma - 1.0)
+T = 11.290743302923245
+rho = p / T
+
+# checkpoint = '/srv/public/Maikel/FiniteVolumeSolver/build_2D-Debug/Checkpoint/000000005'
 checkpoint = ''
+
+
+def Area(xi):
+  A0  = 1.0
+  A1  = 4.0 # Reference: 3.0; best: 4.0 
+  xi0 = 0.0625 - 1.0
+  xi1 = 0.75 - 1.0   # Reference: 0.5; best: 0.75
+  Ax = 1.0 if xi < xi0 else A0 + (A1-A0)*(xi-xi0)/(xi1-xi0) if xi < xi1 else A1
+  return Ax
+
+
+ControlOptions = {
+  'Q': ArrheniusKinetics['Q'],
+  'rpmmin': (10000.0 / 60.) * t_ref,
+  'rpmmax': (60000.0 / 60.) * t_ref,
+  'initial_turbine_pressure': p,
+  'initial_turbine_temperature': T,
+  'target_pressure_compressor' : 6.0,
+  'checkpoint': checkpoint,
+  # Tube surface
+  'surface_area_tube_inlet': (n_tubes * Area(-1.0) * D),
+  'surface_area_tube_outlet': (n_tubes * Area(0.0) * D),
+  # Turbine volumes and surfaces
+  'volume_turbine_plenum': TVolRPlen,
+  'surface_area_turbine_plenum_to_turbine': plenum_y_length,
+  # Compressor volumes and surfaces
+  'volume_compressor_plenum': TVolRPlen,
+  'surface_area_compressor_to_compressor_plenum': 8.0 * D,
+}
 
 def ToCellIndex(x, xlo, xhi, ncells):
   xlen = xhi - xlo
   x_rel = (x - xlo) / xlen
   i = int(x_rel * ncells)
   return i
-
-y0s = [-1.0/3.0, 0.0, +1.0/3.0]
-mach_1_boundaries = [ToCellIndex(y0, plenum_y_lower, plenum_y_upper, plenum_y_n_cells) for y0 in y0s]
 
 Plenum = {
   'checkpoint': checkpoint,
@@ -107,6 +184,10 @@ Plenum = {
     'n_proper': 1,
     'n_error_buf': [0, 0, 0]
   },
+  'IntegratorContext': {
+    'scratch_gcw': 4,
+    'flux_gcw': 2,
+  },
   'FluxMethod': FluxMethod,
   'InletGeometries': [{
     'r_start': 4.0 * r_tube,
@@ -115,28 +196,19 @@ Plenum = {
   } for y_0 in y0s],
   'InitialCondition': {
     'left': {
-      'density': 1.0,
-      'temperature': 1.0
+      'density': rho,
+      'temperature': T,
+      'pressure': p
     },
     'right': {
-      'density': 1.0,
-      'temperature': 1.0
+      'density': rho,
+      'temperature': T,
+      'pressure': p
     },
-  },
-  #'PressureOutflowBoundaries': [{
-  #  'outer_pressure': 1.0,
-  #  'efficiency': 0.1
-  #}],
-  
-  #'MachnumberBoundaries': [{
-  #  'boundary_section': { 
-  #    'lower': [plenum_x_n_cells, y0 - int(r_tube / plenum_y_length * plenum_y_n_cells), 0], 
-  #    'upper': [plenum_x_n_cells + 1, y0 + int(r_tube / plenum_y_length * plenum_y_n_cells), 0] 
-  #   }
-  #} for y0 in mach_1_boundaries]
+  }
 }
 
-Plenum[boundary_condition] = [{
+Plenum[boundary_condition] = {
   'boundary_section': { 
     'lower': [plenum_x_n_cells, -4, 0], 
     'upper': [plenum_x_n_cells + 3, plenum_y_n_cells + 3, 0] 
@@ -146,9 +218,9 @@ Plenum[boundary_condition] = [{
     'lower': [plenum_x_n_cells - 1, 0, 0],
     'upper': [plenum_x_n_cells - 1, plenum_y_n_cells - 1, 0]
   },
-  'relative_surface_area': plenum_y_length / (3.0 * D),
-  'massflow_correlation': 0.06,
-}]
+  'relative_surface_area': ControlOptions['surface_area_turbine_plenum_to_turbine'], 
+  'massflow_correlation': massflow_cor, # 0.06 * 4.0,
+}
 
 def TubeCenterPoint(x0, y0):
   return [x0, y0, 0.0]
@@ -180,22 +252,14 @@ def BoxWhichContains(real_box):
 def PlenumMirrorBox(y0):
   return BoxWhichContains(DomainAroundPoint(TubeCenterPoint(-inlet_length, y0), [0.0, -2.0 * D], [inlet_length, +2.0 * D]))
 
-def Area(xi):
-  A0  = 1.0
-  A1  = 4.0 # Reference: 3.0; best: 4.0 
-  xi0 = 0.0625 - 1.0
-  xi1 = 0.75 - 1.0   # Reference: 0.5; best: 0.75
-  Ax = 1.0 if xi < xi0 else A0 + (A1-A0)*(xi-xi0)/(xi1-xi0) if xi < xi1 else A1
-  # return Ax
-  return 1.0
 
 Tube_FluxMethod = FluxMethod
 Tube_FluxMethod['area_variation'] = Area
 
 Tubes = [{
-  'checkpoint': checkpoint,
-  'buffer': 0.06,
-  'initially_filled_x': 0.2,
+  'checkpoint': checkpoint if checkpoint == '' else '{}/Tube_{}'.format(checkpoint, i),
+  # 'buffer': 0.06,
+  'initially_filled_x': 0.1,
   'FluxMethod': Tube_FluxMethod,
   'plenum_mirror_box': PlenumMirrorBox(y_0),
   'GridGeometry': {
@@ -206,6 +270,8 @@ Tubes = [{
     },
     'periodicity': [0, 0, 0]
   },
+  'DiffusionSourceTerm': DiffusionSourceTerm,
+  'ArrheniusKinetics': ArrheniusKinetics,
   'PatchHierarchy': {
     'max_number_of_levels': n_level, 
     'max_grid_size': [tube_n_cells, tube_n_cells, tube_n_cells],
@@ -213,36 +279,42 @@ Tubes = [{
     'refine_ratio': [2, 1, 1],
     'n_proper': 1,
     'n_error_buf': [4, 0, 0]
-  }
-} for y_0 in y0s]
+  },
+  'IntegratorContext': {
+    'scratch_gcw': 6,
+    'flux_gcw': 2,
+  },
+} for (i, y_0) in enumerate(y0s)]
 
 mode_names = ['cellwise', 'average_mirror_state', 'average_ghost_state', 'average_massflow']
 
+tube_intervals = 0.005
+plenum_intervals = 0.02
+
+# outputPath = mode_names[Plenum['TurbineMassflowBoundaries'][0]['mode']]
+
+
 Output = { 
   'outputs': [
+    {
+      'type': 'ControlOutput',
+      'path': '{}/ControlState.h5'.format(outputPath),
+      'intervals': [0.001],
+      # 'frequencies': [1]
+    },
   {
     'type': 'HDF5',
-    'path': '{}/Tube0.h5'.format(mode_names[Plenum['TurbineMassflowBoundaries'][0]['mode']]),
+    'path': '{}/Tube0.h5'.format(outputPath),
     'which_block': 1,
-    'intervals': [0.01]
+    'intervals': [tube_intervals],
+    # 'frequencies': [1]
   },
   {
     'type': 'HDF5',
-    'path': '{}/Tube1.h5'.format(mode_names[Plenum['TurbineMassflowBoundaries'][0]['mode']]),
-    'which_block': 2,
-    'intervals': [0.01]
-  },
-  {
-    'type': 'HDF5',
-    'path': '{}/Tube2.h5'.format(mode_names[Plenum['TurbineMassflowBoundaries'][0]['mode']]),
-    'which_block': 3,
-    'intervals': [0.01]
-  },
-  {
-    'type': 'HDF5',
-    'path': '{}/Plenum.h5'.format(mode_names[Plenum['TurbineMassflowBoundaries'][0]['mode']]),
+    'path': '{}/Plenum.h5'.format(outputPath),
     'which_block': 0,
-    'intervals': [0.04]
+    'intervals': [plenum_intervals],
+    # 'frequencies': [1]
   },
   {
   #   'type': 'Plotfiles',
@@ -257,7 +329,13 @@ Output = {
     #'frequencies': [100]
   #}, {
    'type': 'CounterOutput',
-   'intervals': [1.0]
+  #  'intervals': [1/.0]
+    'frequencies': [100]
+  },
+  {
+    'type': 'Checkpoint',
+    'intervals': [1.0],
+    'directory': '{}/Checkpoint/'.format(outputPath)
   }
   ]
 }
