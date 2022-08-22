@@ -4,7 +4,7 @@ from datetime import datetime
 
 class AmrexConan(ConanFile):
     name = "AMReX"
-    version = datetime.today().strftime('%y.%m.%d')
+    version = "development" # datetime.today().strftime('%y.%m.%d')
     license = "https://raw.githubusercontent.com/AMReX-Codes/amrex/master/license.txt"
     url = "https://github.com/AMReX-Codes/amrex"
     description = "A software framework for massively parallel, block-structured adaptive mesh refinement (AMR) applications"
@@ -29,20 +29,20 @@ class AmrexConan(ConanFile):
     def source(self):
         self.run("git clone https://github.com/AMReX-Codes/amrex.git --branch development --single-branch --depth=1")
         # Garantee proper linkage
-        tools.replace_in_file("amrex/CMakeLists.txt", "project(AMReX)",
-                              '''project (AMReX)
-include(${CMAKE_BINARY_DIR}/conanbuildinfo.cmake)
-conan_basic_setup()''')
+        tools.replace_in_file("amrex/CMakeLists.txt", "message(STATUS \"CMake version",
+                              '''include(${CMAKE_BINARY_DIR}/conanbuildinfo.cmake)
+conan_basic_setup()
+message(STATUS "CMake version''')
 
 
     def _configure_cmake(self):
         cmake = CMake(self)
         cmake.configure(source_folder="amrex", defs={
             "BUILD_SHARED_LIBS": "ON" if self.options.shared else "OFF",
-            "ENABLE_MPI": "ON" if self.options.mpi else "OFF",
-            "DIM": self.options.dim,
-            "ENABLE_EB": "ON" if self.options.eb else "OFF",
-            "ENABLE_OMP": "ON" if self.options.omp else "OFF"
+            "AMReX_MPI": "ON" if self.options.mpi else "OFF",
+            "AMReX_SPACEDIM": self.options.dim,
+            "AMReX_EB": "ON" if self.options.eb else "OFF",
+            "AMReX_OMP": "ON" if self.options.omp else "OFF"
         })
 
         return cmake
