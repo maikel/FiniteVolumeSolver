@@ -20,7 +20,7 @@ jobs:
 
     steps:
     - name: Install packages via aptitude
-      run: apt-get update && apt-get upgrade -y && apt-get install -y python3 python3-pip libopenmpi-dev cmake g++ git
+      run: apt-get update && apt-get upgrade -y && apt-get install -y python3 python3-pip libopenmpi-dev cmake g++ git pybind11-dev librange-v3-dev
 
     - uses: actions/checkout@v3
 
