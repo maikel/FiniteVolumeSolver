@@ -1,3 +1,5 @@
+[![Build on Ubuntu 22.04](https://github.com/maikel/FiniteVolumeSolver/actions/workflows/ubuntu.yml/badge.svg)](https://github.com/maikel/FiniteVolumeSolver/actions/workflows/ubuntu.yml)
+
 # Finite Volume Solver
 
 This C++17 project provides a framework to solve hyperbolic equations with finite volume methods.
