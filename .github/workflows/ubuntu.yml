@@ -39,8 +39,8 @@ jobs:
 
     - name: Configure CMake
       run: |
-        conan install /__w FiniteVolumeSolver/FiniteVolumeSolver/ -s AMReX:build_type=${{env.BUILD_TYPE}} -o AMReX:dim=2 -o AMReX:omp=False --build missing --install-folder /build
-        cmake /__w FiniteVolumeSolver/FiniteVolumeSolver/ -B /build -D CMAKE_BUILD_TYPE=${{env.BUILD_TYPE}}
+        conan install /__w/FiniteVolumeSolver/FiniteVolumeSolver/ -s AMReX:build_type=${{env.BUILD_TYPE}} -o AMReX:dim=2 -o AMReX:omp=False --build missing --install-folder /build
+        cmake /__w/FiniteVolumeSolver/FiniteVolumeSolver/ -B /build -D CMAKE_BUILD_TYPE=${{env.BUILD_TYPE}}
 
     - name: Build
       run: cmake --build /build --config ${{env.BUILD_TYPE}}
