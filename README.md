@@ -13,6 +13,10 @@ At last, this library is also capable of handling embedded boundaries in a dimen
 
 We provide a [Doxygen documentation](http://page.mi.fu-berlin.de/ghastermann/fvs-agklein-dox/).
 
+This framework includes applications that are used in research of regarding the combustion processes of a gas turbine. For example, the application AMReX.EB.ConvergentNozzle computes the shock field of detonation wave that goes through a convergent nozzle within the plenum of a gas turbine
+
+<img src="docs/img/Figure0318.png" />
+
 Installation {#installation}
 ============================
 
