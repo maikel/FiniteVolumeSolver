@@ -16,6 +16,8 @@ We provide a [Doxygen documentation](http://page.mi.fu-berlin.de/ghastermann/fvs
 Installation {#installation}
 ============================
 
+You can take a look at the GitHub Actions and docker/Containerfile to see the required steps to build this library. Here, we will briefly explain what needs to be done, to compile and link the library against its dependencies.
+
 Conan Configuration {#conan-config}
 -----------------------------------
 
@@ -30,51 +32,6 @@ If you have root access on your machine you can also consider doing a system-wid
 
 ```text
 > sudo pip3 install conan
-```
-
-To test whether conan is installed type `conan` in your command line window.
-
-Expected Output:
-
-```text
-> conan
-Consumer commands
-  install    Installs the requirements specified in a recipe (conanfile.py or conanfile.txt).
-  config     Manages Conan configuration.
-  get        Gets a file or list a directory of a given reference or package.
-  info       Gets information about the dependency graph of a recipe.
-  search     Searches package recipes and binaries in the local cache or in a remote.
-Creator commands
-  new        Creates a new package recipe template with a 'conanfile.py' and optionally,
-             'test_package' testing files.
-  create     Builds a binary package for a recipe (conanfile.py).
-  upload     Uploads a recipe and binary packages to a remote.
-  export     Copies the recipe (conanfile.py & associated files) to your local cache.
-  export-pkg Exports a recipe, then creates a package from local source and build folders.
-  test       Tests a package consuming it from a conanfile.py with a test() method.
-Package development commands
-  source     Calls your local conanfile.py 'source()' method.
-  build      Calls your local conanfile.py 'build()' method.
-  package    Calls your local conanfile.py 'package()' method.
-  editable   Manages editable packages (package that resides in the user workspace, but are
-             consumed as if they were in the cache).
-  workspace  Manages a workspace (a set of packages consumed from the user workspace that
-             belongs to the same project).
-Misc commands
-  profile    Lists profiles in the '.conan/profiles' folder, or shows profile details.
-  remote     Manages the remote list and the package recipes associated to a remote.
-  user       Authenticates against a remote with user/pass, caching the auth token.
-  imports    Calls your local conanfile.py or conanfile.txt 'imports' method.
-  copy       Copies conan recipes and packages to another user/channel.
-  remove     Removes packages or binaries matching pattern from local cache or remote.
-  alias      Creates and exports an 'alias package recipe'.
-  download   Downloads recipe and binaries to the local cache, without using settings.
-  inspect    Displays conanfile attributes, like name, version and options. Works locally, in
-             local cache and remote.
-  help       Shows help for a specific command.
-  graph      Generates and manipulates lock files.
-
-Conan commands. Type "conan <command> -h" for help
 ```
 
 As a first step, you have to create a [conan profile](https://docs.conan.io/en/latest/reference/commands/misc/profile.html), which describes which toolchain you want to use. To create an auto-detected tool-chain use the command
@@ -104,19 +61,18 @@ build_type=Release
 [env]
 ```
 
-Note: The library needs a minimum GCC version of 7 or a minimum LLVM clang version of 5. We regularly test in our CI at GitLab GCC version 9 and clang version 8.
+Note: The library needs a minimum GCC version of 7 or a minimum LLVM clang version of 5.
 
-We added some custom installation recipes which `conan` can use to install dependencies like [[AMReX]] or [[HDF5]]. These are stored in a `conan` repository and we need to point `conan` to this repository. This is done via the command line
+We added some custom installation recipes which `conan` can use to install dependencies like [[AMReX]] or [[HDF5]]. These are stored in the `conan` subdirectory within this repository.
 
-```text
-> conan remote add gitlab https://git.imp.fu-berlin.de/api/v4/packages/conan
-> conan user <username> -r gitlab -p <api-key>
+To create conan packages for our third-party dependencies use commands such as
+
 ```
-Hereby <username> is the login name for gitlab and <api-key> is a personal 
-*access token* provided by gitlab at git.imp.fu-berlin.de.
-
-The access token can be created via the user symbol on the top right of the 
-gitlab interface, Settings->Access Tokens (check api). 
+> conan create /FiniteVolumeSolver/conan/conan-hdf5 HDF5/1.10@local/stable
+> conan create /FiniteVolumeSolver/conan/conan-amrex AMReX/development@local/stable
+> conan create /FiniteVolumeSolver/conan/conan-vc Vc/1.4.3@local/stable
+> conan create /FiniteVolumeSolver/conan/conan-fmt fmt/9.0.0@local/stable
+```
 
 MPI Installation {#mpi-install}
 -------------------------------
@@ -136,7 +92,7 @@ Building the Library {#build-library}
 First use git and clone the library to a local directory
 
 ```text
-> git clone git@git.imp.fu-berlin.de:ag-klein/FiniteVolumeSolver.git
+> git clone https://github.com/maikel/FiniteVolumeSolver.git
 ```
 
 If you want to build the unit tests you need to pull `Catch2` as a git submodule. Enter the source direction and call
