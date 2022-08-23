@@ -22,7 +22,7 @@
 #include "fub/AMReX_CutCell.hpp"
 #include "fub/Solver.hpp"
 
-#include "fub/cutcell_method/MyStabilisation.hpp"
+// #include "fub/cutcell_method/MyStabilisation.hpp"
 
 #include "fub/AMReX/cutcell/boundary_condition/ConstantBoundary.hpp"
 
@@ -91,9 +91,9 @@ void MyMain(const fub::ProgramOptions& opts) {
   // fub::HllMethod hll_method{equation, signals};
   fub::perfect_gas::HllemMethod<fub::PerfectGas<2>> hllem_method{equation};
   fub::MusclHancockMethod flux_method(equation, hllem_method);
-  // fub::FluxMethod<fub::perfect_gas::MusclHancockPrim<2>> flux_method{equation};
-  // fub::KbnCutCellMethod cutcell_method(flux_method, hllem_method);
-  fub::MyCutCellMethod cutcell_method(equation, flux_method);
+  fub::FluxMethod<fub::perfect_gas::MusclHancockPrim<2>> flux_method{equation};
+  fub::KbnCutCellMethod cutcell_method(flux_method, hllem_method);
+  // fub::MyCutCellMethod cutcell_method(equation, flux_method);
   HyperbolicMethod method{FluxMethod{cutcell_method}, TimeIntegrator2{},
                           Reconstruction{equation}};
 
