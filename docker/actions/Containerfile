@@ -14,13 +14,13 @@ RUN git -C /FiniteVolumeSolver checkout feature/Github-Actions
 
 RUN conan create /FiniteVolumeSolver/conan/conan-hdf5 HDF5/1.10@local/stable
 
-RUN conan create /FiniteVolumeSolver/conan/conan-amrex AMReX/development@local/stable
+RUN conan create /FiniteVolumeSolver/conan/conan-amrex AMReX/development@local/stable -s AMReX:build_type=Debug -o AMReX:dim=2 -o AMReX:omp=False
 
 RUN conan create /FiniteVolumeSolver/conan/conan-vc Vc/1.4.3@local/stable
 
 RUN conan create /FiniteVolumeSolver/conan/conan-fmt fmt/9.0.0@local/stable
 
-RUN conan install /FiniteVolumeSolver -s AMReX:build_type=Debug -o AMReX:dim=2 -o AMReX:omp=False --build missing --install-folder /build
+RUN conan install /FiniteVolumeSolver -s AMReX:build_type=Debug -o AMReX:dim=2 -o AMReX:omp=False --build missing --build boost --install-folder /build
 
 RUN cmake /FiniteVolumeSolver -B /build -D CMAKE_BUILD_TYPE=Debug
 

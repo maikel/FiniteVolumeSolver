@@ -33,13 +33,13 @@ jobs:
     - name: Create conan packages
       run: |
         conan create /__w/FiniteVolumeSolver/FiniteVolumeSolver/conan/conan-hdf5 HDF5/1.10@local/stable
-        conan create /__w/FiniteVolumeSolver/FiniteVolumeSolver/conan/conan-amrex AMReX/development@local/stable
+        conan create /__w/FiniteVolumeSolver/FiniteVolumeSolver/conan/conan-amrex AMReX/development@local/stable -s AMReX:build_type=${{env.BUILD_TYPE}} -o AMReX:dim=2 -o AMReX:omp=False
         conan create /__w/FiniteVolumeSolver/FiniteVolumeSolver/conan/conan-vc Vc/1.4.3@local/stable
         conan create /__w/FiniteVolumeSolver/FiniteVolumeSolver/conan/conan-fmt fmt/9.0.0@local/stable
 
     - name: Configure CMake
       run: |
-        conan install /__w/FiniteVolumeSolver/FiniteVolumeSolver/ -s AMReX:build_type=${{env.BUILD_TYPE}} -o AMReX:dim=2 -o AMReX:omp=False --build missing --install-folder /build
+        conan install /__w/FiniteVolumeSolver/FiniteVolumeSolver/ -s AMReX:build_type=${{env.BUILD_TYPE}} -o AMReX:dim=2 -o AMReX:omp=False --build missing --build boost --install-folder /build
         cmake /__w/FiniteVolumeSolver/FiniteVolumeSolver/ -B /build -D CMAKE_BUILD_TYPE=${{env.BUILD_TYPE}}
 
     - name: Build
