@@ -141,6 +141,8 @@ public:
 
   void PreAdvanceHierarchy();
 
+  void PreSplitStep([[maybe_unused]] int level, [[maybe_unused]] Duration dt, [[maybe_unused]] Direction dir, [[maybe_unused]] std::pair<int, int> subcycle) {}
+
   void PostAdvanceHierarchy(Duration dt);
 
   /// \brief On each first subcycle this will regrid the data if neccessary.

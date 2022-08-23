@@ -210,6 +210,10 @@ void MultiBlockIntegratorContext::SetTimePoint(Duration t, int level) {
 /// @{
 /// \name Member functions relevant for the level integrator algorithm.
 
+void MultiBlockIntegratorContext::PreSplitStep([[maybe_unused]] int level, [[maybe_unused]] Duration dt, [[maybe_unused]] Direction dir, [[maybe_unused]] std::pair<int, int> subcycle)
+{
+}
+
 /// \brief On each first subcycle this will regrid the data if neccessary.
 int MultiBlockIntegratorContext::PreAdvanceLevel(int level_num, Duration dt,
                                                  std::pair<int, int> subcycle) {
