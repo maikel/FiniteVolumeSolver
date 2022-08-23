@@ -1,8 +1,11 @@
 [requires]
-boost/1.71.0
-eigen/3.3.7
-Vc/1.4.3@local/testing
+boost/1.75.0
+eigen/3.3.9
 cgal/5.3
+fmt/9.0.0@local/stable
+AMReX/development@local/stable
+Vc/1.4.3@local/stable
+HDF5/1.10@local/stable
 
 [generators]
 cmake

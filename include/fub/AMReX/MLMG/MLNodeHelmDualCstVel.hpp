@@ -126,7 +126,7 @@ public:
     virtual void getFluxes (const Vector<MultiFab*>& a_flux,
                             const Vector<MultiFab*>& a_sol) const final override;
 
-    virtual void unimposeNeumannBC (int , MultiFab& ) const final override {};
+    // virtual void unimposeNeumannBC (int , MultiFab& ) const final override {};
 
     void averageDownCoeffs ();
     void averageDownCoeffsToCoarseAmrLevel (int flev);

@@ -79,6 +79,8 @@ AllRegularIndexSpace::AllRegularIndexSpace(const ::amrex::Geometry& geom,
   }
 }
 
+void AllRegularIndexSpace::addFineLevels(int) {}
+
 const ::amrex::EB2::Level&
 AllRegularIndexSpace::getLevel(const ::amrex::Geometry& geom) const {
   auto it = std::find(domains_.begin(), domains_.end(), geom.Domain());

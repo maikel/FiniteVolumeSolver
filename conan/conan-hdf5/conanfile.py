@@ -14,12 +14,12 @@ class Hdf5Conan(ConanFile):
     generators = "cmake"
 
     def requirements(self):
-        self.requires.add("zlib/[>=1.2.11]@conan/stable")
+        self.requires.add("zlib/[>=1.2.11]")
         # Use system mpi 
         # self.requires.add("OpenMPI/3.1.3@finite-volume/stable")
 
     def source(self):
-        self.run("git clone https://bitbucket.hdfgroup.org/scm/hdffv/hdf5.git  --branch hdf5_1_10 --single-branch --depth=1")
+        self.run("git clone https://github.com/HDFGroup/hdf5.git  --branch hdf5_1_10 --single-branch --depth=1")
         # Garantee proper linkage
         tools.replace_in_file("hdf5/CMakeLists.txt", "project (HDF5 C)",
                               '''project (HDF5 C)

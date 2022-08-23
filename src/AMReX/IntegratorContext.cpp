@@ -591,6 +591,13 @@ void IntegratorContext::UpdateConservatively(int level, Duration dt,
   method_.time_integrator.UpdateConservatively(*this, level, dt, dir);
 }
 
+void IntegratorContext::PreSplitStep(int level, Duration dt, Direction dir, std::pair<int, int> subcycle)
+{
+  Timer timer = GetCounterRegistry()->get_timer(
+      "cutcell::IntegratorContext::PreSplitStep");
+  method_.flux_method.PreSplitStep(*this, level, dt, dir, subcycle);
+}
+
 int IntegratorContext::PreAdvanceLevel(int level_num, Duration dt,
                                        std::pair<int, int> subcycle) {
   Timer timer =
