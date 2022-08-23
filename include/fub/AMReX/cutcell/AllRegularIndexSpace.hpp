@@ -36,6 +36,7 @@ public:
   getLevel(const ::amrex::Geometry& geom) const final;
   const ::amrex::Geometry& getGeometry(const ::amrex::Box& dom) const final;
   const ::amrex::Box& coarsestDomain() const final;
+  void addFineLevels(int num_new_fine_levels) final override;
 
 private:
   using LevelType = ::amrex::EB2::GShopLevel<
