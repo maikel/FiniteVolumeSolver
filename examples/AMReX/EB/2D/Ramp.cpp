@@ -90,7 +90,7 @@ void MyMain(const fub::ProgramOptions& opts) {
   // fub::EinfeldtSignalVelocities<fub::PerfectGas<2>> signals{};
   // fub::HllMethod hll_method{equation, signals};
   fub::perfect_gas::HllemMethod<fub::PerfectGas<2>> hllem_method{equation};
-  fub::MusclHancockMethod flux_method(equation, hllem_method);
+  // fub::MusclHancockMethod flux_method(equation, hllem_method);
   fub::FluxMethod<fub::perfect_gas::MusclHancockPrim<2>> flux_method{equation};
   fub::KbnCutCellMethod cutcell_method(flux_method, hllem_method);
   // fub::MyCutCellMethod cutcell_method(equation, flux_method);
