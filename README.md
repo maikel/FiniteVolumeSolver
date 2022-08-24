@@ -17,6 +17,10 @@ This framework includes applications that are used in research of combustion pro
 
 <img src="docs/img/Figure0318.png" />
 
+We also investigated the dynamics of multiple tubes that fire in a three-dimensional plenum as shown in the next figure
+
+<img src="docs/img/View-of-the-plenum-with-a-98-blocked-exit-mimicking-the-flow-resistance-of-a-turbine.png" />
+
 Installation {#installation}
 ============================
 
