@@ -25,8 +25,8 @@ if len(sys.argv)<3:
                +'\t1. argument must be dataPath!\n'
                +'\t2. argument must be scalar number\n'
                +'\toptional argument is name of the inputfile\n'
-               +'\toptional argument parallel working with module multiprocessing (false or true)'
-               +'\te.g. {} path 680 --config=inputfile.py --parallel=true'.format(sys.argv[0])
+               +'\toptional argument parallel working with module multiprocessing --parallel (default works on 8 CPUs)'
+               +'\te.g. {} path 680 --config=inputfile.py --parallel=4'.format(sys.argv[0])
             )
    raise RuntimeError(errMsg)
 
@@ -43,14 +43,19 @@ if not optInputFilename:
 inputfileName = optInputFilename[0]
 
 PARALLEL=False
-optParallelFlag = [ str(el.rsplit('=',1)[-1]) for el in sys.argv if '--parallel=' in el ]
-if optParallelFlag: #list exists
-  matches = ['true', 'True']
-  if any(match in optParallelFlag[0] for match in matches):
-    print('true if')
-    PARALLEL = bool(optParallelFlag[0])
-  else:
-    pass
+if any('--parallel' in arg for arg in sys.argv):
+   from multiprocessing import Pool, cpu_count
+   PARALLEL=True
+   Num_CPUs = 8
+   try:
+      cpuString = [ int(el.rsplit('=',1)[-1]) for el in sys.argv if '--parallel' in el ]
+      if cpuString:
+         Num_CPUs = cpuString[0]
+   except: 
+      pass
+   if Num_CPUs>cpu_count():
+      Num_CPUs = cpu_count()
+   print(f'starting computations on {Num_CPUs} from {cpu_count()} available cores')
 
 other.import_file_as_module(os.path.join(inputFilePath, inputfileName), 'inputfile')
 from inputfile import Area, tube_n_cells, p_ref, rho_ref, Output, u_ref, t_ref, L_ref, R_ref, R, gamma
@@ -500,12 +505,6 @@ if INCLUDETUBE:
     plt.close(i)
 
   if PARALLEL:
-    from multiprocessing import Pool, cpu_count
-    Num_CPUs = 8    
-    if Num_CPUs<cpu_count():
-      Num_CPUs = cpu_count()
-    print(f'starting computations on {Num_CPUs} from {cpu_count()} available cores')
-
     values = ((i,step,valueDict,pv_class,PARALLEL) for i, step in enumerate(steps))
 
     with Pool(Num_CPUs) as pool:
@@ -518,5 +517,7 @@ if INCLUDETUBE:
   #   ##print(f'step {i}')
       plotFigure(i, step, valueDict, pv_class)
 
-  
-  os.system('ffmpeg -framerate 10 -i {}/{}-quiver_tubeID{}-%5d.png -crf 20 {}/../{}Movie.mkv'.format(newFolder, str(int(test_scalar)).zfill(5), tube_id, newFolder, str(int(test_scalar)).zfill(5)) )
+  try:
+    os.system('ffmpeg -framerate 10 -i {}/{}-quiver_tubeID{}-%5d.png -crf 20 {}/../{}Movie.mkv'.format(newFolder, str(int(test_scalar)).zfill(5), tube_id, newFolder, str(int(test_scalar)).zfill(5)) )
+  except:
+    print('ffmpeg could not be started')

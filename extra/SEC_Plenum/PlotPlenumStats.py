@@ -40,18 +40,6 @@ inputfileName = optional[0]
 import_file_as_module( os.path.join(inputFilePath, inputfileName), 'inputfile')
 from inputfile import t_ref, T_ref, ControlOptions
 
-#---------------------------------------
-# bool to read all existing HDF5 files
-# this make only sense if we restarted the simulation form the last checkpoint!!
-RESTARTEDSIMULATION = False
-
-from scipy.signal import savgol_filter
-USEONLYSAVGOLFILTER=False 
-window_length=51 # length of the filter window 51
-polyorder=3 # order of the polynomial 
-
-PLOTFILLBETWEEN=True
-from scipy.signal import find_peaks
 #--------------------------------
 # style settings for matplotlib
 plt.style.use('seaborn')
@@ -96,6 +84,21 @@ def readPlenumStats(path, string):
    dat = np.loadtxt(fname, skiprows=1)
    return dat, headerDict
 
+def readPlenumStatsUnorderd(path, string):
+   fname = os.path.join(path, 'Plenum_{}_stats_unorderd.dat'.format(string))
+   if not os.path.isfile(fname):
+      raise FileNotFoundError()
+   headerDict = {}
+   with open(fname) as f:
+      line = f.readline()
+      line = line.split('#')[-1]
+      headerDict = {key: value for value, key in enumerate(line.split()) }
+   dat = np.loadtxt(fname, skiprows=1)
+   ind = np.argsort( dat[:,0] ) # sort times col
+   dat = dat[ind] # sort with this indices data
+   return dat, headerDict
+
+
 #----------------------------------------
 # start to make figure 
 f, axs = plt.subplots(nrows=2, ncols=1, constrained_layout=True)# figsize=(23/2,20/2) )
@@ -118,7 +121,10 @@ elif 'vol20.0' in splittedPath:
 tplotmax = 500.0
 
 for i, ax, subKey, unit in zip(range(len(plotKeyList)), axs.flatten(), plotKeyList, data_units):
-   statsData, headerDict = readPlenumStats(output_path, subKey)
+   try: 
+      statsData, headerDict = readPlenumStats(output_path, subKey)
+   except:
+      statsData, headerDict = readPlenumStatsUnorderd(output_path, subKey)
    
    #scale Temperature to physical values
    if 'Temperature' in subKey:

@@ -23,9 +23,9 @@ os.environ['HDF5_USE_FILE_LOCKING'] = 'False'
 if len(sys.argv)<2:
   errMsg = ('Not enough input arguments!\n'
                +'\t1. argument must be dataPath!\n'
-               +'\toptional argument is name of the inputfile\n'
-               +'\toptional argument parallel working with module multiprocessing (false or true)'
-               +'\te.g. {} path --config=inputfile.py --parallel=true'.format(sys.argv[0])
+               +'\toptional argument is name of the inputfile: --config=inputfile.py\n'
+               +'\toptional argument parallel working with module multiprocessing --parallel (default works on 8 CPUs)'
+               +'\te.g. {} path --config=inputfile.py --parallel=4'.format(sys.argv[0])
             )
   raise RuntimeError(errMsg)
 
@@ -42,14 +42,19 @@ if not optional:
 inputfileName = optional[0]
 
 PARALLEL=False
-optParallelFlag = [ str(el.rsplit('=',1)[-1]) for el in sys.argv if '--parallel=' in el ]
-if optParallelFlag: #list exists
-  matches = ['true', 'True']
-  if any(match in optParallelFlag[0] for match in matches):
-    print('true if')
-    PARALLEL = bool(optParallelFlag[0])
-  else:
-    pass
+if any('--parallel' in arg for arg in sys.argv):
+   from multiprocessing import Pool, cpu_count
+   PARALLEL=True
+   Num_CPUs = 8
+   try:
+      cpuString = [ int(el.rsplit('=',1)[-1]) for el in sys.argv if '--parallel' in el ]
+      if cpuString:
+         Num_CPUs = cpuString[0]
+   except: 
+      pass
+   if Num_CPUs>cpu_count():
+      Num_CPUs = cpu_count()
+   print(f'starting computations on {Num_CPUs} from {cpu_count()} available cores')
 
 import_file_as_module(os.path.join(inputFilePath, inputfileName), 'inputfile')
 from inputfile import Area, tube_n_cells, p_ref, rho_ref, Output, u_ref, t_ref
@@ -62,8 +67,8 @@ except:
   n_tubes=1
 
 plenum = "{}/Plenum.h5".format(dataPath)
-outPath = dataPath
-output_path = '{}/Visualization/Plenum/'.format(outPath)
+outPath = '{}/Visualization/'.format(dataPath)
+output_path = '{}/Plenum/'.format(outPath)
 
 # Get times and nSteps from plenum
 print('Read times from {}'.format(plenum))
@@ -113,20 +118,8 @@ for out_dict in output_dict:
 tube_output_factor = int(plenum_out / tube_out)
 # print(tube_output_factor, plenum_out, tube_out)
 
-
-def getPassiveScalarLimits(filePath, first=0, last=nSteps-1):
-   (rho, rhoX, vols), _, _, _ = io.h5_load_spec_timepoint_variable(filePath, first, ["Density", "PassiveScalars", "vfrac"])
-   rho = np.ma.masked_array(rho, vols < 1e-14)
-   min = np.min(rhoX / rho)
-
-   (rho, rhoX, vols), _, _, _ = io.h5_load_spec_timepoint_variable(filePath, last, ["Density", "PassiveScalars", "vfrac"])
-   rho = np.ma.masked_array(rho, vols < 1e-14)
-   max = np.max(rhoX / rho)
-
-   return np.rint((min, max))
-
 print('LOad passive scalar limits for scaling right the contourf plot.')
-scalar_limits = getPassiveScalarLimits(plenum, first=t_index_array[0], last=t_index_array[-1])
+scalar_limits = io.getPassiveScalarLimits(plenum, t_index_array[0], t_index_array[-1])
 
 titles = ['Pressure', 'Temperature',  'Passive Scalar', 'Velocity']
 def props(title):
@@ -187,7 +180,6 @@ def props(title):
       }
    return props
 
-
 def PrintProgress(i):
   progress = int(100.0 * float(i) / (nSteps - 1))
   print('[{:3d}%] Reading slice [{}/{}]'.format(progress, i + 1, nSteps))
@@ -242,10 +234,10 @@ def plotFigure(i, PARALLEL=False):
    temperature = pressure / rho
 
    # # print out the first occurence of min/max value 
-   dataManip.printSimpleStatsPlenumSingleTimepoint(pressure, 'Pressure', current_time, output_path=output_path)
-   dataManip.printSimpleStatsPlenumSingleTimepoint(rho, 'Density', current_time, output_path=output_path)
-   dataManip.printSimpleStatsPlenumSingleTimepoint(temperature, 'Temperature', current_time, output_path=output_path)
-   dataManip.printSimpleStatsPlenumSingleTimepoint(passiveScalarMF, 'PassiveScalar', current_time, output_path=output_path)
+   dataManip.printSimpleStatsPlenumSingleTimepoint(pressure, 'Pressure', current_time, output_path=output_path, PARALLEL=PARALLEL)
+   dataManip.printSimpleStatsPlenumSingleTimepoint(rho, 'Density', current_time, output_path=output_path, PARALLEL=PARALLEL)
+   dataManip.printSimpleStatsPlenumSingleTimepoint(temperature, 'Temperature', current_time, output_path=output_path, PARALLEL=PARALLEL)
+   dataManip.printSimpleStatsPlenumSingleTimepoint(passiveScalarMF, 'PassiveScalar', current_time, output_path=output_path, PARALLEL=PARALLEL)
 
 
    f, axs = plt.subplots(nrows=2, ncols=2, figsize=(20. / 2, 15. / 2), gridspec_kw={'width_ratios': [4,2]}, constrained_layout=True)
@@ -323,19 +315,17 @@ def plotFigure(i, PARALLEL=False):
    plt.close(f)
 
 if PARALLEL:
-    from multiprocessing import Pool, cpu_count
-    Num_CPUs = 8    
-    if Num_CPUs<cpu_count():
-      Num_CPUs = cpu_count()
-    print(f'starting computations on {Num_CPUs} from {cpu_count()} available cores')
+   values = ((i,PARALLEL) for i in t_index_array)
 
-    values = ((i,PARALLEL) for i in t_index_array)
-
-    with Pool(Num_CPUs) as pool:
+   with Pool(Num_CPUs) as pool:
       pool.starmap(plotFigure, values)
 else:
    for i in t_index_array:
       plotFigure(i)
+
+# sort unorderd data and save them to disk
+if PARALLEL:
+   dataManip.sortSimpleStatsPlenum(outPath)
 
 # Call ffmpeg to make a movie
 try:
@@ -345,4 +335,3 @@ try:
    os.system('ffmpeg -start_number {} -framerate 20 -i {}/Figure%5d.png -crf 20 {}/../PlenumMovie.mkv'.format(t_index_array[0], output_path, output_path))
 except:
    print('ffmpeg could not be started')
-   pass

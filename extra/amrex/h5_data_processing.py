@@ -1,5 +1,6 @@
 import numpy as np
 import os
+import glob
 from datetime import datetime
 
 def maskPlenumCutCells(data, vfrac, vfracOffset=1.0e-14):
@@ -121,4 +122,29 @@ def printSimpleStatsPlenumSingleTimepoint(data, variable, time, ndig=8, output_p
   if output_path:
     with open(fname, 'a') as f:
       f.write(format_row.format(*stats_data)+"\n")
+  else:
+    print(format_row.format(*stats_data))
   # print()
+
+def sortSimpleStatsPlenum(path):
+  """
+  Sort Plenumstats written from parallel executed function printSimpleStatsPlenumSingleTimepoint(**args).
+  The files '*_unorderd.dat' will be deleted after execution.
+  
+  Parameters
+  ----------------------------------------
+    path:       string
+                the driectory path where the files are located
+  """
+  fnames = glob.glob(path+'*unorderd.dat')
+  # print(fnames)
+  for fname in fnames:
+    if not os.path.isfile(fname):
+        raise FileNotFoundError()
+    with open(fname) as f:
+        header = f.readline()
+    dat = np.loadtxt(fname, skiprows=1)
+    ind = np.argsort( dat[:,0] ) # sort times col
+    dat = dat[ind] # sort with this indices data
+    np.savetxt(''.join(fname.split('_unorderd')), dat, header=header)
+    os.remove(fname)

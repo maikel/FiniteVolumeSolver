@@ -151,6 +151,18 @@ def h5_load_restartedTimeseries(basePath):
     times = np.concatenate((times, time))
   return datas, time, datas_dict
 
+def getPassiveScalarLimits(plenumFile, first, last):
+   (rho, rhoX, vols), _, _, _ = h5_load_spec_timepoint_variable(plenumFile, first, ["Density", "PassiveScalars", "vfrac"])
+   rho = np.ma.masked_array(rho, vols < 1e-14)
+   min = np.min(rhoX / rho)
+
+   (rho, rhoX, vols), _, _, _ = h5_load_spec_timepoint_variable(plenumFile, last, ["Density", "PassiveScalars", "vfrac"])
+   rho = np.ma.masked_array(rho, vols < 1e-14)
+   max = np.max(rhoX / rho)
+
+   return np.rint((min, max))
+
+
 #--------------------------------------------------
 # functions to load data generated with Prof. Klein's 1D Code
 
