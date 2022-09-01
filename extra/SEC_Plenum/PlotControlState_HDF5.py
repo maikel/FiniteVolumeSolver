@@ -91,6 +91,18 @@ if RESTARTEDSIMULATION:
 else:
    datas, times, datas_dict = io.h5_load_timeseries(filename_basic)
 
+# optional slicing in time-dimension
+tplotmin = 0.
+tplotmax = 500.
+t_index_array = (times>=tplotmin) & (times<=tplotmax)
+
+# check if index array is empty
+if not np.any(t_index_array):
+   raise IndexError('time index array is empty!')
+
+times = times[t_index_array]
+datas = datas[t_index_array]
+
 
 def getSubKeyList(substring):
    return [ key for key in datas_dict.keys() if substring in key ]

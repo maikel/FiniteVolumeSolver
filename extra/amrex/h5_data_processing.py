@@ -85,6 +85,8 @@ def printSimpleStatsPlenumSingleTimepoint(data, variable, time, ndig=8, output_p
                  optional write out all stats in file
     FIRSTCALL:  bool, optional
                 rename old file if any, write header in new file
+    PARALLEL:   bool, optional
+                other output filename in case of parallel processing
   """
   if output_path:
     if 'Plenum' in output_path:
@@ -134,7 +136,7 @@ def sortSimpleStatsPlenum(path):
   Parameters
   ----------------------------------------
     path:       string
-                the driectory path where the files are located
+                the directory path where the files are located
   """
   fnames = glob.glob(path+'*unorderd.dat')
   # print(fnames)
@@ -142,9 +144,9 @@ def sortSimpleStatsPlenum(path):
     if not os.path.isfile(fname):
         raise FileNotFoundError()
     with open(fname) as f:
-        header = f.readline()
+        header = f.readline()[3:] # remove '#  '
     dat = np.loadtxt(fname, skiprows=1)
     ind = np.argsort( dat[:,0] ) # sort times col
     dat = dat[ind] # sort with this indices data
-    np.savetxt(''.join(fname.split('_unorderd')), dat, header=header)
+    np.savetxt(''.join(fname.split('_unorderd')), dat, header=header, fmt='%.15f')
     os.remove(fname)

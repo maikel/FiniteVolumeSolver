@@ -180,10 +180,10 @@ for test_scalar in test_scalar_list:
     indexed_time = times[t_index_array]
 
     if not pvHelper.valueCheck(test_scalar, scalarX_data):
+      print('scalar value {} was not in [{}, {}]'.format(test_scalar, np.min(scalarX_data), np.max(scalarX_data)))
       raise ValueError("value Check failed!")
 
     # print(scalarX_data.shape)
-    # print(np.min(scalarX_data), np.max(scalarX_data))
 
     counter = 0
     FIRSTTIME = True
@@ -328,10 +328,11 @@ for test_scalar in test_scalar_list:
   
   pvHelper.legend_without_duplicate_labels(axs[0])
 
+  ndig = 3
   fig.suptitle('passive scalar number {} was in tube [{}, {}]'.format(
                                   test_scalar,
-                                  round(tube_passive_scalar_times['start'], 2), 
-                                  round(tube_passive_scalar_times['stop'], 2) 
+                                  round(tube_passive_scalar_times['start'], ndig), 
+                                  round(tube_passive_scalar_times['stop'], ndig) 
                                 ))
   
   figname = '{}/{}-quiver_{}-{}-Diagramm_tubeID{}'

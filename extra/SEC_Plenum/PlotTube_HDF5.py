@@ -32,6 +32,11 @@ inputFilePath = dataPath # assumes inputfile is located in datapath
 
 output_path = '{}/Visualization'.format(dataPath)
 
+DEFLPROPS = False
+if 'defl' in output_path:
+  DEFLPROPS = True
+
+
 # bool to read all existing HDF5 files
 # this make only sense if we restarted the simulation form the last checkpoint!!
 RESTARTEDSIMULATION = False
@@ -168,36 +173,39 @@ for tube_id in range(n_tubes):
       'aspect': 'auto'
     }
     if title == 'Passive Scalars [-]':
-      props = {
-        'origin': 'lower',
-        'extent': (x0, xEnd, t0, tEnd),
+      props.update({
+        # 'origin': 'lower',
+        # 'extent': (x0, xEnd, t0, tEnd),
         'levels': np.linspace(np.min(X), np.max(X), 20),
         'vmax': None,
         'vmin': None,
         'cmap': 'twilight'
-      }
+      })
     if title == 'Fuel Massfraction [-]':
       props['vmax'] = None
       props['vmin'] = None
       props['cmap'] = 'gray_r'
-    # if  title == 'Temperature':
-      # props['vmax'] = 3.0
+    if  title == 'Temperature [K]':
+      props['vmax'] = 12. * T_ref
     if title == 'Pressure [bar]':
-      props = {
-      'origin': 'lower',
-      'interpolation': 'none',
-      'aspect': 'auto',
-      'extent': (x0, xEnd, t0, tEnd),
+      props.update({
+      # 'origin': 'lower',
+      # 'interpolation': 'none',
+      # 'aspect': 'auto',
+      # 'extent': (x0, xEnd, t0, tEnd),
       'vmin': 0.0,
       'vmax': 30.0,
       'cmap': 'jet'
-      }
+      })
+      if DEFLPROPS:
+        props['vmax'] = 6.0
     return props
   import itertools
   ims = [a.imshow(data, **props(title)) for (__, (a, data, title)) in itertools.takewhile(lambda x: x[0] < 4,  enumerate(zip(ax, datas, titles)))]
   # ims = [a.plot(data[-1,:]) for (__, (a, data, title)) in itertools.takewhile(lambda x: x[0] < 4,  enumerate(zip(ax, datas, titles)))]
   if 'PassiveScalars' in datas_dict:
     ims.append(ax[4].contourf(datas[4], **props(titles[4])))
+    # TODO adjust ylim, xlim here...
   for a, title in zip(ax, titles):
     a.set(xlabel='x', title=title)
 

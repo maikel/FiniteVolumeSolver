@@ -40,6 +40,13 @@ inputfileName = optional[0]
 import_file_as_module( os.path.join(inputFilePath, inputfileName), 'inputfile')
 from inputfile import t_ref, T_ref, ControlOptions
 
+from scipy.signal import savgol_filter
+window_length=51 # length of the filter window 51
+polyorder=3 # order of the polynomial 
+SMOOTHDATA=False
+
+# ftypes = ['.png', '.pdf']
+ftypes = ['.png']#, '.pdf']
 #--------------------------------
 # style settings for matplotlib
 plt.style.use('seaborn')
@@ -98,29 +105,31 @@ def readPlenumStatsUnorderd(path, string):
    dat = dat[ind] # sort with this indices data
    return dat, headerDict
 
+def smooth(data):
+   return savgol_filter(data,     
+                  window_length=window_length, 
+                  polyorder=polyorder, 
+                  mode='mirror')
 
 #----------------------------------------
 # start to make figure 
-f, axs = plt.subplots(nrows=2, ncols=1, constrained_layout=True)# figsize=(23/2,20/2) )
-f.suptitle('Plenum Stats')
 
 # what we want to plot
 plotKeyList = ['Pressure', 'Temperature']
-# corresponding data units
-data_units = [' [bar]', ' [K]']
+axLabelList = ['p', 'T']
+data_units = [' [bar]', ' [K]'] # corresponding data units
 
 meanValueMinTime = 300.
 
 # optional slicing in time-dimension
-tplotmin = 100.0 # vol10
-splittedPath = dataPath.rsplit('/',1)[-2] #-2 because / at the end
-if 'vol40.0' in splittedPath:
-   tplotmin = 200.0
-elif 'vol20.0' in splittedPath:
-   tplotmin = 145.0
+tplotmin = 0.
 tplotmax = 500.0
 
-for i, ax, subKey, unit in zip(range(len(plotKeyList)), axs.flatten(), plotKeyList, data_units):
+f, axs = plt.subplots(nrows=2, ncols=1, constrained_layout=True)# figsize=(23/2,20/2) )
+f.suptitle('Turbine Plenum Stats')
+print('Plot MinMax Figure')
+
+for i, ax, subKey, unit, symbol in zip(range(len(plotKeyList)), axs.flatten(), plotKeyList, data_units, axLabelList):
    try: 
       statsData, headerDict = readPlenumStats(output_path, subKey)
    except:
@@ -136,6 +145,7 @@ for i, ax, subKey, unit in zip(range(len(plotKeyList)), axs.flatten(), plotKeyLi
    min = statsData[:, headerDict['min']]
    max = statsData[:, headerDict['max']]
    mean = statsData[:, headerDict['mean']]
+   std = statsData[:, headerDict['std']]
 
    tplotmax = tplotmax if time[-1]>=tplotmax else np.rint(time[-1])
    t_index_array = (time>=tplotmin) & (time<=tplotmax)
@@ -143,21 +153,126 @@ for i, ax, subKey, unit in zip(range(len(plotKeyList)), axs.flatten(), plotKeyLi
    if not np.any(t_index_array):
       raise IndexError('time index array is empty!')
 
-   ax.plot(time[t_index_array], mean[t_index_array], color=colors[i], label=subKey)
-   ax.fill_between(time[t_index_array], max[t_index_array], min[t_index_array], alpha=0.5, color=colors[i])
+   # define labels and strings   
+   meanValue = np.mean(mean[time>meanValueMinTime])
+   meanString = 'mean {}'.format(symbol)
+   fillBetweenString = '+-MinMax({})'.format(symbol)
+   xlabel = 'time'
+   ylabel = subKey+unit
+   title = '{} {} {} {} for '.format(meanString, 'approx', round(meanValue, 2), unit.lstrip())
+   title+='t in [{}{}]'.format(np.rint(meanValueMinTime), np.rint(time[-1]))
+   if usetex:
+      meanString = r'$\overline{{{}}}$'.format(symbol)
+      fillBetweenString = r'$\pm min({}) \backslash max({})$'.format(symbol,symbol)
+      xlabel = r'$t$'+' [-]'
+      ylabel = r'${}$'.format(symbol)+unit
+      title = '{} {} {} {} for '.format(meanString, r'$\approx$', round(meanValue, 2), unit[2:-1])
+      title+= r'$t \in [{},{}]$'.format(np.rint(meanValueMinTime), np.rint(time[-1]))
+
+   ax.plot( time[t_index_array], 
+            mean[t_index_array], 
+            color=colors[i], 
+            label=meanString
+            )
+   ax.fill_between( time[t_index_array],
+            max[t_index_array], 
+            min[t_index_array], 
+            alpha=0.5, 
+            color=colors[i],
+            label=meanString+fillBetweenString 
+            )
+
+   ax.set_title(title)
+   ax.set(xlabel=xlabel, ylabel=ylabel, xlim=(tplotmin, tplotmax))
+   ax.grid(True)
+   ax.legend(loc='upper left')
+
+   # ax.label_outer()
+
+for ftype in ftypes:
+   f.savefig('{}/Plenum_stats-MinMaxValue{}'.format(output_path, ftype), bbox_inches='tight', dpi=600)
+
+f.clear()
+plt.close(f)
+
+#-----------------------------------------------------------
+# start to make figure 
+f, axs = plt.subplots(nrows=2, ncols=1, constrained_layout=True, figsize=(8.0, 5.))
+f.suptitle('Turbine Plenum Stats')
+skip=5
+stdFactor = 1.0
+
+print('Plot std Figure')
+for i, ax, subKey, unit, symbol in zip(range(len(plotKeyList)), axs.flatten(), plotKeyList, data_units, axLabelList):
+   try: 
+      statsData, headerDict = readPlenumStats(output_path, subKey)
+   except:
+      statsData, headerDict = readPlenumStatsUnorderd(output_path, subKey)
+   statsData = statsData[::skip]
+   
+   #scale Temperature to physical values
+   if 'Temperature' in subKey:
+      mask = np.ones(statsData.shape, bool)
+      mask[:, headerDict['time']] = False # except the time values
+      statsData[mask] *= T_ref 
+
+   time = statsData[:, headerDict['time']]
+   min = statsData[:, headerDict['min']]
+   max = statsData[:, headerDict['max']]
+   mean = statsData[:, headerDict['mean']]
+   std = statsData[:, headerDict['std']]
+
+   tplotmax = tplotmax if time[-1]>=tplotmax else np.rint(time[-1])
+   t_index_array = (time>=tplotmin) & (time<=tplotmax)
+   # check if index array is empty
+   if not np.any(t_index_array):
+      raise IndexError('time index array is empty!')
+
+   # define labels and strings   
+   meanValue = np.mean(mean[time>meanValueMinTime])
+   meanString = 'mean {}'.format(symbol)
+   fillBetweenString = '+-{}*std({})'.format(int(stdFactor), symbol)
+   xlabel = 'time'
+   ylabel = subKey+unit
+   title = '{} {} {} {} for '.format(meanString, 'approx', round(meanValue, 2), unit.lstrip())
+   title+='t in [{}{}]'.format(np.rint(meanValueMinTime), np.rint(time[-1]))
+   if usetex:
+      meanString = r'$\overline{{{}}}$'.format(symbol)
+      fillBetweenString = r'$\pm {} \cdot \sigma({})$'.format(int(stdFactor), symbol)
+      xlabel = r'$t$'+' [-]'
+      ylabel = r'${}$'.format(symbol)+unit
+      title = '{} {} {} {} for '.format(meanString, r'$\approx$', round(meanValue, 2), unit[2:-1])
+      title+= r'$t \in [{},{}]$'.format(np.rint(meanValueMinTime), np.rint(time[-1]))
+   
+   if SMOOTHDATA:
+      MeanData = smooth(mean[t_index_array])
+   else:
+      MeanData = mean[t_index_array]
+   
+   ax.plot( time[t_index_array],
+            MeanData, 
+            color=colors[i], 
+            label=meanString )
+   
+   ax.fill_between(time[t_index_array], 
+            MeanData+stdFactor*std[t_index_array], 
+            MeanData-stdFactor*std[t_index_array],
+            alpha=0.5, 
+            color=colors[i],
+            label=meanString+fillBetweenString )
    
    meanValue = np.mean(mean[time>meanValueMinTime])
-   lab = 't in [{},{}]'
-   if usetex:
-      lab = r'$t \in [{},{}]$'
-
-   ax.set_title('mean value = {} {} for '.format(round(meanValue, 2), unit)
-               + lab.format(np.rint(meanValueMinTime), np.rint(time[-1]))
-               )
-   ax.set(xlabel='time', ylabel=subKey+unit, xlim=(tplotmin, tplotmax))
+   ax.set_title(title)
+   ax.set(xlabel=xlabel, ylabel=ylabel, xlim=(tplotmin, tplotmax)         )
    ax.grid(True)
+   ax.legend(loc='upper left')
+   # if 'Temperature' in subKey:
+   #    ax.set( ylim=(2000,4000) )
+   
+   # ax.label_outer()
 
-f.savefig('{}/Plenum_stats.png'.format(output_path), bbox_inches='tight')
+for ftype in ftypes:
+   f.savefig('{}/Plenum_stats-std{}'.format(output_path, ftype), bbox_inches='tight', dpi=600)
 
 f.clear()
 plt.close(f)

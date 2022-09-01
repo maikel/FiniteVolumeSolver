@@ -36,6 +36,10 @@ if not os.path.exists(dataPath):
    raise FileNotFoundError('given Path: {} does not exist!'.format(dataPath))
 inputFilePath = dataPath # assumes inputfile is located in datapath
 
+DEFLAGRATION=False
+if 'defl' in dataPath:
+  DEFLAGRATION=True
+
 # name of the inputfile is optional
 optInputFilename = [ int(el.rsplit('=',1)[-1]) for el in sys.argv if '--config=' in el ]
 if not optInputFilename:
@@ -155,6 +159,7 @@ time = []
 steps=[]
 indices = []
 location = []
+tube_passive_scalar_times = {'start':None, 'stop':None}
 
 if INCLUDETUBE:
   tube_id = 0
@@ -208,6 +213,7 @@ if INCLUDETUBE:
     else:
       if FIRSTTIME:
         print("scalar has entered the tube at current time = {}".format(current_time))
+        tube_passive_scalar_times['start'] = current_time
         FIRSTTIME = False
     
     if (counter==0) and INCLUDECONTROLSTATE:
@@ -234,8 +240,8 @@ if INCLUDETUBE:
     counter += 1
 
     if (idPos==tube_scalarX.shape[1]-1) or (idNeg==tube_scalarX.shape[1]-1):
-      print("scalar has left the tube!")
-      print("current time = {}".format(current_time))
+      print("scalar has left the tube at current time = {}".format(current_time))
+      tube_passive_scalar_times['stop'] = current_time
       break
 
 if INCLUDEPLENUM:
@@ -337,6 +343,16 @@ pvHelper.drawIsentropLine(p0, v0, pv_class.gamma, axs[0])
 
 pvHelper.legend_without_duplicate_labels(axs[0])
 
+ndig=3
+if not Dimless:
+  tube_passive_scalar_times = {key: value*pv_class.ref_time for key,value in tube_passive_scalar_times.items()}
+  ndig = 5
+fig.suptitle('passive scalar number {} was in tube [{}, {}]'.format(
+                                  test_scalar,
+                                  round(tube_passive_scalar_times['start'], ndig), 
+                                  round(tube_passive_scalar_times['stop'], ndig) 
+                                ))
+
 figname = '{}/{}-quiver_{}-{}-Diagramm_tubeID{}'
 if Dimless:
   figname += '_Dimless'
@@ -391,6 +407,8 @@ def props(title):
       )
    elif title == 'pressure':
       levels = np.linspace(1.0, 20., nlevels)
+      if DEFLAGRATION:
+        levels = np.linspace(1.0, 8., nlevels)
       props.update(
          {
          'levels': levels,
