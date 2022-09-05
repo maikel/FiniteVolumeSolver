@@ -276,8 +276,8 @@ Plenum = {
   },
   'FluxMethod': FluxMethod,
   'InletGeometries': [{
-    'r_start': 4.0 * r_tube,
-    'r_end': 4.0 * r_tube,
+    'r_start': surface_area_SingleTube_outlet * r_tube, # 4.*r_tube
+    'r_end': surface_area_SingleTube_outlet * r_tube, # 4.*r_tube
     'y_0': y_0,
   } for y_0 in tube_y0s],
 }
