@@ -131,12 +131,14 @@ RESTARTEDSIMULATION = False
 # what location / files should be used
 INCLUDECONTROLSTATE = False
 INCLUDETUBE = True
-INCLUDEPLENUM = False
+INCLUDETURBINEPLENUM = False
 
 locDict = {
   'compressor' : 0, # control state
   'tube' : 1, # burning tube
-  'turbine' : 2 # turbine plenum
+  'turbinePlenum' : 2, # turbinePlenum
+  'turbine' : 3, 
+  'ambient' : 4
 }
 #-------------------------------------------
 # load ControlState data
@@ -199,10 +201,6 @@ if INCLUDETUBE:
   if not pvHelper.valueCheck(test_scalar, tube_scalarX):
     raise ValueError("value Check failed!")
 
-
-  # print(tube_scalarX.shape)
-  # print(np.min(tube_scalarX), np.max(tube_scalarX))
-
   counter = 0
   FIRSTTIME = True
   for step in range(tube_scalarX.shape[0]):
@@ -244,7 +242,7 @@ if INCLUDETUBE:
       tube_passive_scalar_times['stop'] = current_time
       break
 
-if INCLUDEPLENUM:
+if INCLUDETURBINEPLENUM:
   plenum = "{}/Plenum.h5".format(dataPath)
   # Get times and nSteps from plenum
   plenum_times = io.h5_load_timepoints(plenum)
@@ -282,7 +280,7 @@ if INCLUDEPLENUM:
     # print("current time = {}".format(current_time))
     # print(checkMax(test_scalar, tube_scalarX))
     time.append(current_time)
-    location.append(locDict['turbine'])
+    location.append(locDict['turbinePlenum'])
     # indices.append(index) # index is 2d now!!
 
     if not pvHelper.checkMax(test_scalar, tube_scalarX):
@@ -357,7 +355,7 @@ figname = '{}/{}-quiver_{}-{}-Diagramm_tubeID{}'
 if Dimless:
   figname += '_Dimless'
 figname +='.png'
-fig.savefig(figname.format(output_path, str(int(test_scalar)).zfill(5), 'pv', 'Ts', tube_id), bbox_inches='tight', dpi=600)
+fig.savefig(figname.format(output_path, str(test_scalar).zfill(5), 'pv', 'Ts', tube_id), bbox_inches='tight', dpi=600)
 
 #---------------------------------------------------------------
 def getTubeGeom(filename):
@@ -429,7 +427,7 @@ def props(title):
 #----------------------------------------------------
 
 if INCLUDETUBE:
-  newFolder = '{}/{}-timeseries'.format(output_path, int(test_scalar))
+  newFolder = '{}/{}-timeseries'.format(output_path, test_scalar)
   os.makedirs(newFolder, exist_ok=True)
 
   plt.close('all')
@@ -519,7 +517,7 @@ if INCLUDETUBE:
     cbar.set_label(cbarLabel, rotation=270, labelpad=15)
 
     fig.suptitle('t = {:.8f} {}'.format(t, valueDict['time']['dim']), y=0.92, fontsize=14)
-    fig.savefig('{}/{}-quiver_tubeID{}-{}.png'.format(newFolder, str(int(test_scalar)).zfill(5), tube_id, str(i).zfill(5)), bbox_inches='tight', dpi=150)
+    fig.savefig('{}/{}-quiver_tubeID{}-{}.png'.format(newFolder, str(test_scalar).zfill(5), tube_id, str(i).zfill(5)), bbox_inches='tight', dpi=150)
     plt.close(i)
 
   if PARALLEL:
@@ -536,6 +534,6 @@ if INCLUDETUBE:
       plotFigure(i, step, valueDict, pv_class)
 
   try:
-    os.system('ffmpeg -framerate 10 -i {}/{}-quiver_tubeID{}-%5d.png -crf 20 {}/../{}Movie.mkv'.format(newFolder, str(int(test_scalar)).zfill(5), tube_id, newFolder, str(int(test_scalar)).zfill(5)) )
+    os.system('ffmpeg -framerate 10 -i {}/{}-quiver_tubeID{}-%5d.png -crf 20 {}/../{}Movie.mkv'.format(newFolder, str(test_scalar).zfill(5), tube_id, newFolder, str(test_scalar).zfill(5)) )
   except:
     print('ffmpeg could not be started')

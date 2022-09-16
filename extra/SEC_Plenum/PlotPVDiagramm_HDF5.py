@@ -15,7 +15,6 @@ import numpy as np
 import matplotlib
 matplotlib.use('Agg') 
 import matplotlib.pyplot as plt
-import json
 
 os.environ['HDF5_USE_FILE_LOCKING'] = 'False'
 
@@ -42,7 +41,7 @@ if not optional:
 inputfileName = optional[0]
 
 other.import_file_as_module(os.path.join(inputFilePath, inputfileName), 'inputfile')
-from inputfile import Area, tube_n_cells, p_ref, rho_ref, Output, u_ref, t_ref, L_ref, R_ref, R, gamma
+from inputfile import Area, tube_n_cells, p_ref, rho_ref, Output, u_ref, t_ref, L_ref, R_ref, R, gamma, ArrheniusKinetics
 from inputfile import D as diameter_tube
 
 try:
@@ -80,6 +79,7 @@ print('initiate Attribute class')
 pv_class = pvHelper.pv_diagramm_class()
 pv_class.setAttribute('specGasConstant', R) # [-]
 pv_class.setAttribute('gamma', gamma) # [-]
+# set reference values right!
 pv_class.setAttribute('ref_time', t_ref) # [s]
 pv_class.setAttribute('ref_length', L_ref) # [m]
 pv_class.setAttribute('ref_pressure', p_ref) # [Pa]
@@ -90,6 +90,7 @@ pv_class.setAttribute('ref_GasConstant', R_ref) # [J/(kg*K)]
 
 print('Attribute class contains following members:')
 print(pv_class.prettyprint())
+print()
 
 #-------------------------------------------------
 
@@ -106,20 +107,34 @@ test_scalar_list = [pvHelper.convertStringToFloat(el) for el in temp.split(',')]
 print('Following passive scalar numbers could be parsed: {}'.format(test_scalar_list))
 
 tplotmin = 200. #200.0
-tplotmax = 400.0
+tplotmax = 500.
 Dimless = True
 # bool to read all existing HDF5 files
 # this make only sense if we restarted the simulation form the last checkpoint!!
 RESTARTEDSIMULATION = False
-INCLUDECONTROLSTATE = False
+INCLUDECONTROLSTATE = True
+INCLUDEADIABATCOMPRESSOR = True
 INCLUDETUBE = True
-INCLUDEPLENUM = False
+INCLUDETURBINEPLENUM = True
+INCLUDEADIABATTURBINE = True
+INCLUDEAMBIENT = True
+DRAWCYCLE = True
+nInterpPoints = 100
 
 locDict = {
   'compressor' : 0, # control state
   'tube' : 1, # burning tube
-  'turbine' : 2 # turbine plenum
+  'turbinePlenum' : 2, # turbinePlenum
+  'turbine' : 3,
+  'ambient' : 4
 }
+
+# catch error if not AMbient and adiabat stuff
+if INCLUDEAMBIENT:
+  if INCLUDEADIABATCOMPRESSOR and not INCLUDECONTROLSTATE:
+    raise ValueError('Controlstate must be included for visualizing adiabat compressor')
+  if INCLUDEADIABATTURBINE and not INCLUDECONTROLSTATE:
+    raise ValueError('Controlstate must be included for visualizing adiabat turbine')
 #-------------------------------------------
 
 for test_scalar in test_scalar_list:
@@ -132,7 +147,15 @@ for test_scalar in test_scalar_list:
   indices = []
   location = []
   tube_passive_scalar_times = {'start':None, 'stop':None}
-  
+
+  #-------------------------------------------
+  # ambient data
+  if INCLUDEAMBIENT:
+    passive_scalar[0].append(pv_class.ambientPressure)
+    passive_scalar[1].append(pv_class.ambientDensity)
+    time.append(0.)
+    location.append(locDict['ambient'])
+
   #-------------------------------------------
   # load ControlState data
   if INCLUDECONTROLSTATE:
@@ -143,7 +166,6 @@ for test_scalar in test_scalar_list:
       csData, csTimes, csDict = io.h5_load_restartedTimeseries(filename_basic)
     else:
       csData, csTimes, csDict = io.h5_load_timeseries(filename_basic)
-
   #-------------------------------------------
   # load Tube0 data
   if INCLUDETUBE:
@@ -183,8 +205,6 @@ for test_scalar in test_scalar_list:
       print('scalar value {} was not in [{}, {}]'.format(test_scalar, np.min(scalarX_data), np.max(scalarX_data)))
       raise ValueError("value Check failed!")
 
-    # print(scalarX_data.shape)
-
     counter = 0
     FIRSTTIME = True
     for step in range(scalarX_data.shape[0]):
@@ -199,16 +219,36 @@ for test_scalar in test_scalar_list:
           FIRSTTIME = False
 
       if (counter==0) and INCLUDECONTROLSTATE:
-        csdata = pvHelper.getControlStateData(current_time, csData, csTimes)
+        # here compressor time
+        # TODO compute here adiabat compression from ambient conditions to csData 
+        csdataAtCurentTimePoint = pvHelper.getRelevantControlStateData(current_time, csData, csTimes)
         # 'compressor_pressure', compressor_temperature'
-        passive_scalar[0].append(csdata[csDict['compressor_pressure']])
-        csDensity = pv_class.computeDensity(
-              csdata[csDict['compressor_pressure']],
-              csdata[csDict['compressor_temperature']] )
-        passive_scalar[1].append(csDensity)
-        time.append(current_time)
-        location.append(locDict['compressor'])
-        del csDensity, csdata
+        compressorPressure = csdataAtCurentTimePoint[csDict['compressor_pressure']]
+        compressorTemperature = csdataAtCurentTimePoint[csDict['compressor_temperature']]
+        compressorDensity = pv_class.computeDensity(
+              compressorPressure, compressorTemperature )
+        
+        #---------------------------------------------
+        if INCLUDEADIABATCOMPRESSOR:
+          # here compressor time
+          # adiabat expansion from compressorPressure to ambientPressure
+          compressorPressureArray = np.linspace(pv_class.ambientPressure, compressorPressure, nInterpPoints)
+          compressorSpecVolumeArray= pvHelper.computeIsentropCurveIsoVol(pv_class.ambientPressure, 1./pv_class.ambientDensity, pv_class.gamma, compressorPressureArray)
+          
+          # # adiabat expansion from compressorDensity to ambientDensity
+          # compressorSpecVolumeArray = np.linspace(pv_class.ambientDensity, compressorDensity, nInterpPoints)**(-1)
+          # compressorPressureArray= pvHelper.computeIsentropCurvePressure(compressorPressure, 1./compressorDensity, pv_class.gamma, compressorSpecVolumeArray)
+          
+          for i in range(nInterpPoints):
+            passive_scalar[0].append(compressorPressureArray[i])
+            passive_scalar[1].append(compressorSpecVolumeArray[i]**(-1))
+            time.append(current_time)
+            location.append(locDict['compressor'])
+        else:
+          passive_scalar[0].append(compressorPressure)
+          passive_scalar[1].append(compressorDensity)
+          time.append(current_time)
+          location.append(locDict['compressor'])
       
       idNeg, idPos = pvHelper.findNearest1D(scalarX_data[step,:], test_scalar)
       
@@ -226,11 +266,13 @@ for test_scalar in test_scalar_list:
 
   #------------------------------
   # load Plenum data
-  if INCLUDEPLENUM:
+  if INCLUDETURBINEPLENUM:
     plenum = "{}/Plenum.h5".format(dataPath)
     # Get times and nSteps from plenum
+    print('Read times from {}'.format(plenum))
     plenum_times = io.h5_load_timepoints(plenum)
     nSteps = plenum_times.shape[0]
+    print('Found {} timepoints/steps'.format(nSteps))
     t_bool_array = (plenum_times>=time[-1]) & (plenum_times<=tplotmax)
     t_index_array = np.nonzero(t_bool_array)[0] # returns tuple: (array([10 11 ...]), )
 
@@ -265,7 +307,7 @@ for test_scalar in test_scalar_list:
       # print("current time = {}".format(current_time))
       # print(checkMax(test_scalar, scalarX_data))
       time.append(current_time)
-      location.append(locDict['turbine'])
+      location.append(locDict['turbinePlenum'])
       # indices.append(index) # index is 2d now!!
 
       if not pvHelper.checkMax(test_scalar, scalarX_data):
@@ -274,17 +316,90 @@ for test_scalar in test_scalar_list:
         break
       del pressure, rho
 
+  if INCLUDEADIABATTURBINE:
+    # here turbine time
+    # compute here adiabat expansion from csData to ambient conditions
+    csdataAtCurentTimePoint = pvHelper.getRelevantControlStateData(current_time, csData, csTimes)
+    # 'turbine_pressure', turbine_temperature'
+    turbinePlenumPressure = csdataAtCurentTimePoint[csDict['turbine_pressure']]
+    turbinePlenumTemperature = csdataAtCurentTimePoint[csDict['turbine_temperature']]
+    turbinePlenumDensity = pv_class.computeDensity(
+          turbinePlenumPressure, turbinePlenumTemperature )
+    
+    # adiabat expansion from turbinePlenumPressure to ambientPressure
+    turbinePlenumPressureArray = np.linspace(turbinePlenumPressure, pv_class.ambientPressure, nInterpPoints)
+    turbinePlenumSpecVolumeArray= pvHelper.computeIsentropCurveIsoVol(turbinePlenumPressure, 1./turbinePlenumDensity, pv_class.gamma, turbinePlenumPressureArray)
+    
+    # # adiabat expansion from turbinePlenumDensity to ambientDensity
+    # turbinePlenumSpecVolumeArray = np.linspace(turbinePlenumDensity, pv_class.ambientDensity, nInterpPoints)**(-1)
+    # turbinePlenumPressureArray= pvHelper.computeIsentropCurvePressure(turbinePlenumPressure, 1./turbinePlenumDensity, pv_class.gamma, turbinePlenumSpecVolumeArray)
+    
+    for i in range(nInterpPoints):
+      passive_scalar[0].append(turbinePlenumPressureArray[i])
+      passive_scalar[1].append(turbinePlenumSpecVolumeArray[i]**(-1))
+      time.append(current_time)
+      location.append(locDict['turbine'])
 
+  #-------------------------------------------
+  if INCLUDEAMBIENT:
+    # compute here isobar cooldown
+    lastPressure = passive_scalar[0][-1]
+    lastDensity = passive_scalar[1][-1]
+    lastTemperature = pv_class.computeTemperature(lastPressure, lastDensity)
+    
+    temperatureArray = np.linspace(lastTemperature, pv_class.ambientTemperature, nInterpPoints)
+    specVolArray= pvHelper.computeIsobarCurveSpecVol(lastTemperature, lastDensity**(-1), temperatureArray)
+    densityArray = specVolArray**(-1)
+    pressureArray = pv_class.computePressure(densityArray, temperatureArray)
+
+    for i in range(nInterpPoints):
+      passive_scalar[0].append(pressureArray[i])
+      passive_scalar[1].append(densityArray[i])
+      time.append(current_time)
+      location.append(locDict['ambient'])
+    # passive_scalar[0].append(pv_class.ambientPressure)
+    # passive_scalar[1].append(pv_class.ambientDensity)
+    # time.append(current_time)
+    # location.append(locDict['ambient'])
   ##-------------------------------------------------------
   ## arange data
-  passive_scalar = np.asarray_chkfinite(passive_scalar)
 
+  if DRAWCYCLE:
+    # append first data point, so we draw closed cycle
+    passive_scalar[0].append(passive_scalar[0][0])
+    passive_scalar[1].append(passive_scalar[1][0])
+    location.append(location[0])
+  
+  location = location[1:] # because quiverplot draw only n-1 arrows
+
+  passive_scalar = np.asarray_chkfinite(passive_scalar)
   time = np.array(time)
   pressure = passive_scalar[0]
   rho = passive_scalar[1]
+  specvol = rho**(-1)
   T = pv_class.computeTemperature(pressure, rho, Dimless)
   s = pv_class.computeEntropy(T, rho, Dimless)
   h = pv_class.computeEnthalpy(T, Dimless)
+  
+  # # compute Integral over pv values
+  # work = np.sum(0.5*np.diff(rho**(-1))*(pressure[1:]+pressure[:-1]))
+  # efficiency = 1.-work/heat
+  
+  
+  # following thermodynamic books we compute the thermodynamic efficiency
+  # from the T,s diagram. Where the input heiat 
+  heat = np.sum( 0.5*np.diff(s)*(T[1:]+T[:-1]) ) # enclosed area between the curves in T-s-diagram
+  
+  # compute area under the isobar expansion in T-s-diagram
+  # this corresponds to the removed heat from the process q_ab
+  loc = np.array(location)
+  heat_loss = abs(np.sum( 0.5*np.diff(s)[loc==locDict['ambient']]*(T[1:][loc==locDict['ambient']]+T[:-1][loc==locDict['ambient']]) ))
+  heat_in = heat + heat_loss
+  efficiency = 1.-heat_loss/heat_in
+  
+  # print(f'work={work}, heat={heat}, --> efficiency={efficiency}')
+  print(f'heat={heat}, heat_loss={heat_loss}, --> efficiency={efficiency}')
+
   if not Dimless:
     rho *= pv_class.ref_density
     specVol = np.power(rho, -1)
@@ -329,14 +444,15 @@ for test_scalar in test_scalar_list:
   pvHelper.legend_without_duplicate_labels(axs[0])
 
   ndig = 3
-  fig.suptitle('passive scalar number {} was in tube [{}, {}]'.format(
+  fig.suptitle('passive scalar number {} was in tube [{}, {}]; efficiency={}'.format(
                                   test_scalar,
                                   round(tube_passive_scalar_times['start'], ndig), 
-                                  round(tube_passive_scalar_times['stop'], ndig) 
+                                  round(tube_passive_scalar_times['stop'], ndig),
+                                  round(efficiency, ndig)
                                 ))
   
   figname = '{}/{}-quiver_{}-{}-Diagramm_tubeID{}'
   if Dimless:
     figname += '_Dimless'
   figname +='.png'
-  fig.savefig(figname.format(output_path, str(int(test_scalar)).zfill(5), 'pv', 'Ts', tube_id), bbox_inches='tight', dpi=600)
+  fig.savefig(figname.format(output_path, str(test_scalar).zfill(5), 'pv', 'Ts', tube_id), bbox_inches='tight', dpi=600)

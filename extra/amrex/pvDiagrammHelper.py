@@ -64,7 +64,6 @@ valueDict = {
     'dim': '[-]'
   },
 }
-
 #----------------------------------------------
 ## classes
 
@@ -96,6 +95,11 @@ class pv_diagramm_class(object):
             self.ref_density = self.ref_pressure / self.ref_temperature / self.ref_GasConstant # [kg/m^3]
             self.ref_velocity = math.sqrt(self.ref_pressure / self.ref_density) # [m/s]
             self.ref_time = self.ref_length / self.ref_velocity # [s]
+
+            # dimless ambientConditions
+            self.ambientPressure = 1.0e5 / self.ref_pressure
+            self.ambientTemperature = 273.15 / self.ref_temperature
+            self.ambientDensity = self.computeDensity(self.ambientPressure, self.ambientTemperature)
     
     def prettyprint(self):
       return json.dumps(vars(self), sort_keys=False, indent=4)
@@ -144,26 +148,31 @@ class pv_diagramm_class(object):
         cp = self.getHeatCapacityConstantPressure(Dimless)
         return cp*T
 
-    def computeTemperature(self, p, rho, Dimless=True):
+    #-----------------------------------------------------------------
+    def computeTemperature(self, p_dimless, rho_dimless, Dimless=True):
+        # p_dimless and rho_dimless are assumed to be Dimless!
+        # in self.ref_temperature is self.ref_GasConstant included!!
+        ## --> so we need Rspec always Dimless
         Rspec = self.getSpecGasConstant(True)
         if Dimless:
-          return p/(rho*Rspec)
+          return p_dimless / rho_dimless / Rspec
         else:
-          return p/(rho*Rspec)*self.ref_temperature
+          return p_dimless / rho_dimless / Rspec * self.ref_temperature
 
-    def computeDensity(self, p, T, Dimless=True):
+    def computeDensity(self, p_dimless, T_dimless, Dimless=True):
         Rspec = self.getSpecGasConstant(True)
         if Dimless:
-          return p/(T*Rspec)
+          return p_dimless/T_dimless/Rspec
         else: 
-          return p/(T*Rspec)*self.ref_density
+          return p_dimless/T_dimless/Rspec*self.ref_density
 
-    def computePressure(self, rho, T, Dimless=True):
+    def computePressure(self, rho_dimless, T_dimless, Dimless=True):
         Rspec = self.getSpecGasConstant(True)
         if Dimless:
-          return (rho*T*Rspec)
+          return (rho_dimless*T_dimless*Rspec)
         else:
-          return (rho*T*Rspec)*self.ref_pressure
+          return (rho_dimless*T_dimless*Rspec)*self.ref_pressure
+    #--------------------------------------------------------------
 
 
 #-------------------------------------
@@ -243,14 +252,14 @@ def convertStringToFloat(string):
   except ValueError:
     return string
 
-def getControlStateData(timepoint, csData, csTimes):
+def getRelevantControlStateData(timepoint, csData, csTimes):
   return csData[csTimes>=timepoint, :][0]
 #----------------------------------
 # plot routines
 
 def quiverPlot(strX, strY, valueDict, ax, location=[], sl=(), usetex=False):
   # print(f'Plotting {strY}-{strX} diagram')
-  color = ['m', 'k', 'g']
+  color = ['m', 'k', 'g', 'tab:orange', 'c']
   kwargs = {
     'scale_units' : 'xy', 
     'angles' : 'xy', 
@@ -258,6 +267,7 @@ def quiverPlot(strX, strY, valueDict, ax, location=[], sl=(), usetex=False):
     'zorder' : 7,
   }
   if location:
+    # print(f'DEBUG: locations we have seen are {set(location)}')
     kwargs['color'] = [color[i] for i in location]
   
   x = valueDict[strX]['data']
@@ -295,18 +305,40 @@ def simplePlot(strX, strY, path, test_scalar, markerstyle='x', tube_id=0, usetex
       )
     fig.savefig('{}/{}-{}{}Diagramm_tubeID{}.png'.format(path, str(int(test_scalar)).zfill(5), valueDict[strY]['symbol'], valueDict[strX]['symbol'], tube_id), bbox_inches='tight')
 
-def drawIsothermLine(pressurePoint, specVolPoint, ax):
-    isoVol = np.linspace(*ax.get_xlim(), 101 )
-    const = pressurePoint * specVolPoint # p * v = const
-    eps = getNumpyMachineEpsilon() # prevent zerodivision warning
-    ax.plot(isoVol, const/(isoVol+eps), 'r--', label='isotherm '+r'$p\cdot v$', zorder=5)
+def computeIsobarCurveTemperature(T1, v1, specVolArray):
+  # return TemperatureArray
+  const = v1/T1
+  return const / specVolArray
 
+def computeIsobarCurveSpecVol(T1, v1, temperatureArray):
+  # return TemperatureArray
+  const = v1/T1
+  return const * temperatureArray
 
-def drawIsentropLine(pressurePoint, specVolPoint, gamma, ax):
-  isoVol = np.linspace(*ax.get_xlim(), 101 )
-  const = pressurePoint * specVolPoint**gamma # p * v^gamma = const
+def computeIsochorCurvePressure(p1, T1, temperatureArray):
+  # return pressureArray
+  const = p1/T1
+  return const * temperatureArray
+
+def computeIsochorCurveTemperature(p1, T1, pressureArray):
+  # return temperatureArray
+  const = p1/T1
+  return pressureArray / const
+
+def computeIsothermCurve(p1, v1, isoVolArray):
   eps = getNumpyMachineEpsilon() # prevent zerodivision warning
-  ax.plot(isoVol, const/((isoVol+eps)**gamma), 'b--', label='isentrop '+r'$p\cdot v^\gamma$', zorder=5)
+  const = p1 * v1 # p * v = const
+  return const/(isoVolArray+eps)
+
+def computeIsentropCurvePressure(p1, v1, gamma, isoVolArray):
+  eps = getNumpyMachineEpsilon() # prevent zerodivision warning
+  const = p1 * v1**gamma # p * v^gamma = const
+  return const/((isoVolArray+eps)**gamma)
+
+def computeIsentropCurveIsoVol(p1, v1, gamma, pressureArray):
+  eps = getNumpyMachineEpsilon() # prevent zerodivision warning
+  const = p1 * v1**gamma # p * v^gamma = const
+  return (const/(pressureArray+eps))**(1./gamma)
 
 def computeHugoniotCurve(p1, v1, gamma, pressureArray):
   eps = getNumpyMachineEpsilon() # prevent zerodivision warning
@@ -315,6 +347,16 @@ def computeHugoniotCurve(p1, v1, gamma, pressureArray):
   counter = p1/gammaMinusOne + pterm
   denominator = pressureArray/gammaMinusOne + pterm
   return v1 * counter / denominator
+
+def drawIsothermLine(pressurePoint, specVolPoint, ax):
+  isoVol = np.linspace(*ax.get_xlim(), 101 )
+  pressure = computeIsothermCurve(pressurePoint, specVolPoint, isoVol)
+  ax.plot(isoVol, pressure, 'r--', label='isotherm '+r'$p\cdot v$', zorder=5)
+
+def drawIsentropLine(pressurePoint, specVolPoint, gamma, ax):
+  isoVol = np.linspace(*ax.get_xlim(), 101 )
+  pressure = computeIsentropCurvePressure(pressurePoint, specVolPoint, gamma, isoVol)
+  ax.plot(isoVol, pressure, 'b--', label='isentrop '+r'$p\cdot v^\gamma$', zorder=5)
 
 def drawHugoniotCurve(pressurePoint, specVolPoint, gamma, ax):
   pressureArray = np.linspace(*ax.get_ylim(), 101 )
