@@ -1,9 +1,9 @@
 import math
 
 # tube and plena x_ncells are yet decoupled!!
-tube_n_cells = 256 # 256 320 384
-plenum_x_n_cells = 64 # 64, 96, 128
-# corresponding plenum_y_ncells are 448, 672, 896
+tube_n_cells = 224 # 192 256 320 384
+plenum_x_n_cells = 58
+plenum_y_n_cells = 320
 
 tube_blocking_factor = 8
 plenum_blocking_factor = 32 #8
@@ -15,7 +15,7 @@ n_level = 1
 
 # tube_y0s = [-1.0/3.0, 0.0, +1.0/3.0]
 tube_y0s = [0.0]
-tube_length = 1.0 # [m]
+tube_length = 0.99 #1.0 # [m]
 
 n_tubes = len(tube_y0s)
 r_tube = 0.015
@@ -41,14 +41,15 @@ A1=4.0 # surface Area after diffusor
 magic_z_length = 1.0 # should be replaced when switch to 3d!!!
 
 # normally 3.0 * D # [m] # in old slanted case 10.0D
-inlet_length = 3.0 * D 
+inlet_length = 6.0 * D 
 
 plenum_y_lower = - 1.2
 plenum_y_upper = + 1.2
 plenum_y_length = plenum_y_upper - plenum_y_lower
 
-TVolRPlen = 1.0 * 20.0 * D #20.0 * D
+TVolRPlen = 1.0 * 20.4 * D #20.0 * D
 plenum_x_upper = TVolRPlen / plenum_y_length / magic_z_length
+print(plenum_x_upper)
 plenum_x_lower = -inlet_length
 plenum_x_length = plenum_x_upper - plenum_x_lower
 
@@ -62,7 +63,6 @@ tube_domain_length = tube_length - inlet_length
 tube_over_plenum_length_ratio = tube_domain_length / plenum_domain_length
 plenum_over_tube_length_ratio = 1.0 / tube_over_plenum_length_ratio
 
-# TODO comment in for coupling tube_n_cells with Plenum
 # plenum_x_n_cells = tube_n_cells * plenum_over_tube_length_ratio
 # plenum_x_n_cells -= plenum_x_n_cells % plenum_blocking_factor
 # plenum_x_n_cells = int(plenum_x_n_cells)
@@ -73,10 +73,9 @@ plenum_z_length = plenum_z_upper - plenum_z_lower
 
 plenum_y_over_x_ratio = plenum_y_length / plenum_x_length
 
-plenum_y_n_cells = plenum_x_n_cells * plenum_y_over_x_ratio
-plenum_y_n_cells -= plenum_y_n_cells % plenum_blocking_factor
-plenum_y_n_cells = int(plenum_y_n_cells)
-
+# plenum_y_n_cells = plenum_x_n_cells * plenum_y_over_x_ratio
+# plenum_y_n_cells -= plenum_y_n_cells % plenum_blocking_factor
+# plenum_y_n_cells = int(plenum_y_n_cells)
 plenum_z_over_x_ratio = plenum_z_length / plenum_x_length
 
 plenum_z_n_cells = plenum_x_n_cells * plenum_z_over_x_ratio
@@ -99,7 +98,7 @@ plenum_dz = plenum_z_length / plenum_z_n_cells
 
 
 # outputPath = 'test_oneTube_vol40_y0.48'
-outputPath = 'sec_fullboundary_vol{}_y{}_tx{}_px{}_py{}_xi0_{}_buf{}'.format(TVolRPlen/D, plenum_y_upper, tube_n_cells, plenum_x_n_cells, plenum_y_n_cells, diffusorStart, SEC_buffer)
+outputPath = 'sec_cutcellbox-fb_vol{}_y{}_tx{}_px{}_py{}_xi0_{}_buf{}'.format(TVolRPlen/D, plenum_y_upper, tube_n_cells, plenum_x_n_cells, plenum_y_n_cells, diffusorStart, SEC_buffer)
 # outputPath = 'sec_vol{}_y{}_tx{}_xi0_{}_buf{}_tti{}_timin{}'.format(TVolRPlen/D, plenum_y_upper, tube_n_cells, diffusorStart, SEC_buffer, SEC_tti, SEC_timin)
 
 RunOptions = {
@@ -411,11 +410,11 @@ Output = {
     'intervals': [plenum_intervals],
     # 'frequencies': [1]
   },
-#  {
-#    'type': 'Plotfiles',
-#    'directory': '{}/Plotfiles/'.format(outputPath),
-#    'intervals': [0.01],
-#  },
+ {
+   'type': 'Plotfiles',
+   'directory': '{}/Plotfiles/'.format(outputPath),
+   'intervals': [0.01],
+ },
   {
    'type': 'CounterOutput',
   #  'intervals': [1/.0]
