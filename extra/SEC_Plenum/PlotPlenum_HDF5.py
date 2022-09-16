@@ -247,6 +247,22 @@ def find_nearest(array, value):
    idx = (np.abs(array - value)).argmin()
    return array[idx], idx
 
+def getTubeShape(tube_extent):
+   midpoint = 0.5 * (tube_extent[2] + tube_extent[3])
+   x = np.linspace(tube_extent[0], tube_extent[1], tube_n_cells)
+   areaVariation = np.array([Area(xi) for xi in x])
+   # print('areavar: min {} max {}'.format(np.min(areaVariation), np.max(areaVariation)))
+   y_upper = midpoint + areaVariation * 0.5 * diameter_tube
+   y_lower = midpoint - areaVariation * 0.5 * diameter_tube
+   # y_upper_scale = 0.# 0.2
+   # y_upper += y_upper_scale*np.max(y_upper) # increase y_upper by y_upper_scale (in percent) to avoid overlapping in the image
+   tube_extent[2] = np.min(y_lower)
+   tube_extent[3] = np.max(y_upper)
+   # print('tube_extent = {}'.format(tube_extent))
+   y_lower = [y_lower, tube_extent[2]]
+   y_upper = [y_upper, tube_extent[3]]
+   return tube_extent, y_lower, y_upper, x
+
 dataManip.printSimpleStatsPlenumSingleTimepoint(np.zeros(2), 'Pressure', 1.0, 8, output_path, True, PARALLEL)
 dataManip.printSimpleStatsPlenumSingleTimepoint(np.zeros(2), 'Density', 1.0,  8, output_path, True, PARALLEL)
 dataManip.printSimpleStatsPlenumSingleTimepoint(np.zeros(2), 'Temperature', 1.0,  8, output_path, True, PARALLEL)
@@ -276,15 +292,24 @@ def plotFigure(i, PARALLEL=False):
    
    if INSETAXIS:
       timeStamp = csToTube_output_factor * tubeToPlenum_output_factor * i
-
+      
+      shift = 100
+      if not timeStamp<compressor_pressure.shape[1]:
+         shift *=5
+      
       # quick fix if ControlState-times didn't match
-      if not np.isclose(tubeTime, compressor_pressure[0,timeStamp]):
-         shift = 100
-         _, idx = find_nearest(compressor_pressure[0,timeStamp-shift:timeStamp+shift], tubeTime)
+      try:
          print('tubetime = {} vs. cstime = {}'.format(tubeTime, compressor_pressure[0,timeStamp]))
-         #print('bugfix old id {}, new id {}'.format(timeStamp, timeStamp+idx-shift))
-         timeStamp += idx-shift
-         print('BUGFIX is used: new cstime = {}'.format(tubeTime, compressor_pressure[0,timeStamp]))
+         if not np.isclose(tubeTime, compressor_pressure[0,timeStamp]):
+            _, idx = find_nearest(compressor_pressure[0,timeStamp-shift:timeStamp+shift], tubeTime)
+            timeStamp += idx-shift
+            print('BUGFIX is used: new cstime = {}'.format(tubeTime, compressor_pressure[0,timeStamp]))
+      except:
+         print('tubetime = {} vs. cstime = {}'.format(tubeTime, compressor_pressure[0,timeStamp]))
+         if not np.isclose(tubeTime, compressor_pressure[0,timeStamp-shift]):
+            _, idx = find_nearest(compressor_pressure[0,timeStamp-2*shift:], tubeTime)
+            timeStamp += idx-2*shift
+            print('BUGFIX is used: new cstime = {}'.format(tubeTime, compressor_pressure[0,timeStamp]))
 
       valveStates = [ getValveState(Tube_p[tube][0,0], compressor_pressure[1,timeStamp]) for tube in range(len(Tube_p)) ]
    
@@ -312,28 +337,20 @@ def plotFigure(i, PARALLEL=False):
    f, axs = plt.subplots(nrows=2, ncols=2, figsize=(20. / 2, 15. / 2), gridspec_kw={'width_ratios': [4,2]}, constrained_layout=True)
    axs = axs.flatten()
    f.suptitle('Time = {:.2f}'.format(plenaTime))
-   
+
    #################################################
    # pressure image
    im_p = axs[0].contourf(pressure, extent=plenum_extent, **props(titles[0]))
    for tube_extent, tube_p, valveState in zip(tube_extents, Tube_p, valveStates):
-      midpoint = 0.5 * (tube_extent[2] + tube_extent[3])
-      x = np.linspace(tube_extent[0], tube_extent[1], tube_n_cells)
-      y_upper = midpoint + 0.5 * np.array([Area(xi) for xi in x]) * diameter_tube
-      y_lower = midpoint - 0.5 * np.array([Area(xi) for xi in x]) * diameter_tube
-      y_upper_scale = 0.2
-      y_upper += y_upper_scale*np.max(y_upper) # increase y_upper by y_upper_scale (in percent) to avoid overlapping in the image
-      lower = midpoint - 2.0 * diameter_tube
-      upper = midpoint + 2.0 * diameter_tube
-      tube_extent[2] = lower
-      tube_extent[3] = upper
+      tube_extent, y_lower, y_upper, tube_xLinspace = getTubeShape(tube_extent)
+      
       im_p = axs[0].contourf(tube_p, extent=tube_extent, **props(titles[0]))
-      axs[0].fill_between(x, y_upper, np.max(y_upper), color='white')
-      axs[0].fill_between(x, y_lower, np.min(y_lower), color='white')
+      axs[0].fill_between(tube_xLinspace, y_upper[0], y_upper[1], color='white') # 4*max/min if area is not increasing!
+      axs[0].fill_between(tube_xLinspace, y_lower[0], y_lower[1], color='white')
 
       if INSETAXIS:
          # plot valve state
-         axins_valve = axs[0].inset_axes([0.15, 0.05, 0.3, 0.3])
+         axins_valve = axs[0].inset_axes([0.15, 0.05, 0.15, 0.2])
          axins_valve.barh([0,1], valveState, align='center', tick_label=['closed', 'open'])
          axins_valve.set_xlim(0,1)
          axins_valve.set_title('inflow valve state')
@@ -346,15 +363,18 @@ def plotFigure(i, PARALLEL=False):
    if INSETAXIS:
       from mpl_toolkits.axes_grid1.inset_locator import inset_axes
       # inset axes....
-      axins_fuel = axs[0].inset_axes([0.05, 0.6, 0.4, 0.3])
+      axins_fuel = axs[0].inset_axes([0.05, 0.65, 0.4, 0.3])
       im_fuel = axins_fuel.contourf(Tube_fuel[0], extent=tube_extent, **props('Species'))
-      axins_fuel.fill_between(x, y_upper, np.max(y_upper), color='white')
-      axins_fuel.fill_between(x, y_lower, np.min(y_lower), color='white')
+      axins_fuel.fill_between(tube_xLinspace, y_upper[0], y_upper[1], color='white')
+      axins_fuel.fill_between(tube_xLinspace, y_lower[0], y_lower[1], color='white')
+      axins_fuel.plot(tube_xLinspace, y_upper[0], 'k--')
+      axins_fuel.plot(tube_xLinspace, y_lower[0], 'k--')
       # sub region of the original image
-      x1, x2, y1, y2 = tube_extent[0], -0.5, lower, upper
+      epsilon = 0.5 * diameter_tube
+      x1, x2, y1, y2 = tube_extent[0], -0.5, tube_extent[2]-epsilon, tube_extent[3]+epsilon
       axins_fuel.set_xlim(x1, x2)
       axins_fuel.set_ylim(y1, y2)
-      axins_fuel.set_xticklabels([])
+      #axins_fuel.set_xticklabels([])
       axins_fuel.set_yticklabels([])
       axs[0].indicate_inset_zoom(axins_fuel, edgecolor="black")
       cax = inset_axes(axins_fuel,
@@ -384,14 +404,10 @@ def plotFigure(i, PARALLEL=False):
    
    im_X = axs[2].contourf(passiveScalarMF, extent=plenum_extent, **props(titles[2]))
    for tube_extent, tube_X in zip(tube_extents, Tube_X):
-      midpoint = 0.5 * (tube_extent[2] + tube_extent[3])
-      x = np.linspace(tube_extent[0], tube_extent[1], tube_n_cells)
-      y_upper = midpoint + 0.5 * np.array([Area(xi) for xi in x]) * diameter_tube
-      y_lower = midpoint - 0.5 * np.array([Area(xi) for xi in x]) * diameter_tube
-      y_upper += y_upper_scale*np.max(y_upper) # increase y_upper by y_upper_scale (in percent) to avoid overlapping in the image
+      tube_extent, y_lower, y_upper, tube_xLinspace = getTubeShape(tube_extent)
       im_X = axs[2].contourf(tube_X, extent=tube_extent, **props(titles[2]))
-      axs[2].fill_between(x, y_upper, np.max(y_upper), color='white')
-      axs[2].fill_between(x, y_lower, np.min(y_lower), color='white')
+      axs[2].fill_between(tube_xLinspace, y_upper[0], y_upper[1], color='white')
+      axs[2].fill_between(tube_xLinspace, y_lower[0], y_lower[1], color='white')
    axs[2].set_title(titles[2])
    cbar = plt.colorbar(im_X, ax=axs[2])
 
