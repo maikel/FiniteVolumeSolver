@@ -111,6 +111,9 @@ if (AMReX_FOUND AND AMReX_2D_FOUND)
     add_executable_with_warnings(AMReX.EB.SEC_Plenum_Arrhenius_slanted AMReX/EB/2D/SEC_Plenum_Arrhenius_slanted.cpp)
     target_link_libraries(AMReX.EB.SEC_Plenum_Arrhenius_slanted FiniteVolumeSolver.AMReX.EB)
 
+    add_executable_with_warnings(AMReX.EB.SEC_Plenum_Arrhenius_symmetry AMReX/EB/2D/SEC_Plenum_Arrhenius_symmetry.cpp)
+    target_link_libraries(AMReX.EB.SEC_Plenum_Arrhenius_symmetry FiniteVolumeSolver.AMReX.EB range-v3)
+
     add_executable_with_warnings(AMReX.EB.Slanted_Plenum_test AMReX/EB/2D/Slanted_Plenum_test.cpp)
     target_link_libraries(AMReX.EB.Slanted_Plenum_test FiniteVolumeSolver.AMReX.EB)
 

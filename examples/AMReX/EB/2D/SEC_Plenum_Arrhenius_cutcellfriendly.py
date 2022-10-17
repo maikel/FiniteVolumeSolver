@@ -98,7 +98,7 @@ plenum_dz = plenum_z_length / plenum_z_n_cells
 
 
 # outputPath = 'test_oneTube_vol40_y0.48'
-outputPath = 'sec_cutcellbox-fb_vol{}_y{}_tx{}_px{}_py{}_xi0_{}_buf{}'.format(TVolRPlen/D, plenum_y_upper, tube_n_cells, plenum_x_n_cells, plenum_y_n_cells, diffusorStart, SEC_buffer)
+outputPath = 'sec_cutcellbox-reducebuffer_vol{}_y{}_tx{}_px{}_py{}_xi0_{}_buf{}'.format(round(TVolRPlen/D, 2), plenum_y_upper, tube_n_cells, plenum_x_n_cells, plenum_y_n_cells, diffusorStart, SEC_buffer)
 # outputPath = 'sec_vol{}_y{}_tx{}_xi0_{}_buf{}_tti{}_timin{}'.format(TVolRPlen/D, plenum_y_upper, tube_n_cells, diffusorStart, SEC_buffer, SEC_tti, SEC_timin)
 
 RunOptions = {
