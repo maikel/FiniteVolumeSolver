@@ -422,9 +422,9 @@ def plotFigure(i, PARALLEL=False):
 
    x = np.linspace(*plenum_extent[0:2], num=velU[::skip, ::skip].shape[1], endpoint=True)
    y = np.linspace(*plenum_extent[2:], num=velU[::skip, ::skip].shape[0], endpoint=True)
-   passiveScalarMF,Y = np.meshgrid(x,y)
-   # Q = axs[3].quiver(passiveScalarMF, Y, velU[::skip,::skip], velV[::skip,::skip], scale=u_ref, units='inches', width=0.01)
-   Q = axs[3].quiver(passiveScalarMF, Y, velU[::skip,::skip], velV[::skip,::skip], **props_dict)
+   X,Y = np.meshgrid(x,y)
+   # Q = axs[3].quiver(X, Y, velU[::skip,::skip], velV[::skip,::skip], scale=u_ref, units='inches', width=0.01)
+   Q = axs[3].quiver(X, Y, velU[::skip,::skip], velV[::skip,::skip], **props_dict)
    axs[3].quiverkey(Q, 0.5, 1.05, 1./props_dict['scale'], '{}'.format(round(u_ref,1))+r'$ \frac{m}{s}$', labelpos='E', coordinates='axes')
    # axs[3].set_title('Velocity Field')
    # axs[3].set(aspect='equal')
