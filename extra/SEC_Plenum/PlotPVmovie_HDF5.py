@@ -472,7 +472,7 @@ def plotFigure(i, step, valueDict, pv_class, PARALLEL=False):
     y_quiver = np.linspace(*tube_extent_ax3[2:], num=velocity_x.shape[0], endpoint=True)
     X,Y = np.meshgrid(x_quiver,y_quiver)
     Q = ax3.quiver(X, Y, velocity_x, velocity_y, **props_dict)
-    ax3.quiverkey(Q, 0.5, 1.05, 1./props_dict['scale'], '{}'.format(round(u_ref,1))+r'$ \frac{m}{s}$', labelpos='E', coordinates='axes')
+    # ax3.quiverkey(Q, 0.5, 1.05, 1./props_dict['scale'], '{}'.format(round(u_ref,1))+r'$ \frac{m}{s}$', labelpos='E', coordinates='axes')
   
   # PLOTVALVESTATE = True
   # if PLOTVALVESTATE:

@@ -253,7 +253,7 @@ meanValue = np.mean( datas[times>meanValueMinTime, datas_dict['turbine_pressure'
 lab = 't in [{},{}]'
 if usetex:
    lab = r'$t \in [{},{}]$'
-suptitle += '\n'+'turbine mean pressure = {} for '.format(round(meanValue, 2))+ lab.format(np.rint(meanValueMinTime), np.rint(times[-1]))
+suptitle += '\n'+'turbine mean pressure = {} for '.format(round(meanValue, 4))+ lab.format(np.rint(meanValueMinTime), np.rint(times[-1]))
 f.suptitle(suptitle)
 
 f.savefig('{}/control_state.png'.format(output_path), bbox_inches='tight')

@@ -66,7 +66,7 @@ def printSimpleStatsTubeData(data, variable, times, tube_id=0, ndig=4, output_pa
         f.write(format_row.format(*row)+"\n")
   print()
 
-def printSimpleStatsPlenumSingleTimepoint(data, variable, time, ndig=8, output_path="", FIRSTCALL=False, PARALLEL=False):
+def printSimpleStatsPlenumSingleTimepoint(data, variable, time, ndig=8, output_path="", FIRSTCALL=False, PARALLEL=False, SYMMETRYCHECK=False):
   """
   Print out simple Stats from given Arrays.
   Shape must be (NCellsX, NCellsY, (NCellsZ))
@@ -87,6 +87,8 @@ def printSimpleStatsPlenumSingleTimepoint(data, variable, time, ndig=8, output_p
                 rename old file if any, write header in new file
     PARALLEL:   bool, optional
                 other output filename in case of parallel processing
+    SYMMETRYCHECK: bool, optional
+                   Test if data is symmetric in y side
   """
   if output_path:
     if 'Plenum' in output_path:
@@ -102,6 +104,8 @@ def printSimpleStatsPlenumSingleTimepoint(data, variable, time, ndig=8, output_p
         print("renamed old File '{}' to '{}'".format(fname, newName))
         os.rename(fname, newName)
       header = ['time', 'min', 'mean', 'median', 'std', 'max']
+      if SYMMETRYCHECK:
+        header+=['symmetry']
       format_row = '#{:>17}'+'{:>18}'*(len(header)-1)
       with open(fname, 'w') as f:
         f.write(format_row.format(*header)+"\n")
@@ -118,7 +122,29 @@ def printSimpleStatsPlenumSingleTimepoint(data, variable, time, ndig=8, output_p
     stats_data = [time, data[indices_min], np.mean(data), np.median(data), np.std(data), data[indices_max]]
   
   stats_data = [el if isinstance(el, str) else round(el, ndig) for el in stats_data]
-  
+
+  if SYMMETRYCHECK:
+    # print('Symmetrycheck')
+    ncellsy, ncellsx = data.shape
+    if ncellsy%2:
+        # print('odd case')
+        raise NotImplementedError('odd case in Symmetrycheck is not implemented yet')
+        # odd case
+        ## symmetry axis is on cell faces
+    else:
+        # even case 
+        ## symmetry axis is between cells
+        upperPart = data[:ncellsy//2,:]
+        lowerPart = data[ncellsy//2:,:]
+        lowerPart = np.flip(lowerPart, axis=0)
+        # print(upperPart.shape)
+        # print(lowerPart.shape)
+        symmetryTest = np.ma.allclose(upperPart, lowerPart)
+        print(symmetryTest)
+        # print(upperPart[0,:])
+        # print(lowerPart[0,:])
+    stats_data += symmetryTest
+      
   format_row = '{:>18}'*len(stats_data)
   # print(format_row.format(*stats_data))
   if output_path:

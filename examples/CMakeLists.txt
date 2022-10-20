@@ -117,6 +117,9 @@ if (AMReX_FOUND AND AMReX_2D_FOUND)
     add_executable_with_warnings(AMReX.EB.Slanted_Plenum_test AMReX/EB/2D/Slanted_Plenum_test.cpp)
     target_link_libraries(AMReX.EB.Slanted_Plenum_test FiniteVolumeSolver.AMReX.EB)
 
+    add_executable_with_warnings(AMReX.EB.Symmetry_Plenum_test AMReX/EB/2D/Symmetry_Plenum_test.cpp)
+    target_link_libraries(AMReX.EB.Symmetry_Plenum_test FiniteVolumeSolver.AMReX.EB)
+
     add_executable_with_warnings(AMReX.EB.ConvergentNozzleAxiSymmetric AMReX/EB/2D/ConvergentNozzleAxiSymmetric.cpp)
     target_link_libraries(AMReX.EB.ConvergentNozzleAxiSymmetric FiniteVolumeSolver.AMReX.EB)
 

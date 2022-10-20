@@ -54,6 +54,7 @@ if any('--parallel' in arg for arg in sys.argv):
 other.import_file_as_module( os.path.join(inputFilePath, inputfileName), 'inputfile')
 from inputfile import R #Area, tube_n_cells, p_ref, rho_ref, Output, u_ref, t_ref
 
+SYMMETRYCHECK = True
 #-----------------------------------------------------------------------------
 
 plenum = "{}/Plenum.h5".format(dataPath)
@@ -90,10 +91,10 @@ def getPlenumStats(i, time, PARALLEL=PARALLEL):
    temperature = pressure / (rho*R)
 
    # # print out the first occurence of min/max value 
-   dataManip.printSimpleStatsPlenumSingleTimepoint(pressure, 'Pressure', current_time, output_path=output_path, PARALLEL=PARALLEL)
-   dataManip.printSimpleStatsPlenumSingleTimepoint(rho, 'Density', current_time, output_path=output_path, PARALLEL=PARALLEL)
-   dataManip.printSimpleStatsPlenumSingleTimepoint(temperature, 'Temperature', current_time, output_path=output_path, PARALLEL=PARALLEL)
-   dataManip.printSimpleStatsPlenumSingleTimepoint(passiveScalarMF, 'PassiveScalar', current_time, output_path=output_path, PARALLEL=PARALLEL)
+   dataManip.printSimpleStatsPlenumSingleTimepoint(pressure, 'Pressure', current_time, output_path=output_path, PARALLEL=PARALLEL, SYMMETRYCHECK=SYMMETRYCHECK)
+   dataManip.printSimpleStatsPlenumSingleTimepoint(rho, 'Density', current_time, output_path=output_path, PARALLEL=PARALLEL, SYMMETRYCHECK=SYMMETRYCHECK)
+   dataManip.printSimpleStatsPlenumSingleTimepoint(temperature, 'Temperature', current_time, output_path=output_path, PARALLEL=PARALLEL, SYMMETRYCHECK=SYMMETRYCHECK)
+   dataManip.printSimpleStatsPlenumSingleTimepoint(passiveScalarMF, 'PassiveScalar', current_time, output_path=output_path, PARALLEL=PARALLEL, SYMMETRYCHECK=SYMMETRYCHECK)
 
 if PARALLEL:
    values = ((i, time, PARALLEL) for i, time in enumerate(times))
