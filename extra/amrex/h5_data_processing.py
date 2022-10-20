@@ -66,7 +66,7 @@ def printSimpleStatsTubeData(data, variable, times, tube_id=0, ndig=4, output_pa
         f.write(format_row.format(*row)+"\n")
   print()
 
-def printSimpleStatsPlenumSingleTimepoint(data, variable, time, ndig=8, output_path="", FIRSTCALL=False, PARALLEL=False, SYMMETRYCHECK=False):
+def printSimpleStatsPlenumSingleTimepoint(data, variable, time, ndig=14, output_path="", FIRSTCALL=False, PARALLEL=False, SYMMETRYCHECK=False):
   """
   Print out simple Stats from given Arrays.
   Shape must be (NCellsX, NCellsY, (NCellsZ))
@@ -108,7 +108,7 @@ def printSimpleStatsPlenumSingleTimepoint(data, variable, time, ndig=8, output_p
         header+=['symmetry']
       format_row = '#{:>17}'+'{:>18}'*(len(header)-1)
       with open(fname, 'w') as f:
-        f.write(format_row.format(*header)+"\n")
+        f.write(format_row.format(*header))
       return None
   
   if np.ma.is_masked(data):
@@ -121,7 +121,8 @@ def printSimpleStatsPlenumSingleTimepoint(data, variable, time, ndig=8, output_p
     indices_max = np.unravel_index(np.argmax(data, axis=None), data.shape)
     stats_data = [time, data[indices_min], np.mean(data), np.median(data), np.std(data), data[indices_max]]
   
-  stats_data = [el if isinstance(el, str) else round(el, ndig) for el in stats_data]
+  # stats_data = [el if isinstance(el, str) else round(el, ndig) for el in stats_data]
+  stats_data = [round(el, ndig) for el in stats_data]
 
   if SYMMETRYCHECK:
     # print('Symmetrycheck')
@@ -140,16 +141,16 @@ def printSimpleStatsPlenumSingleTimepoint(data, variable, time, ndig=8, output_p
         # print(upperPart.shape)
         # print(lowerPart.shape)
         symmetryTest = np.ma.allclose(upperPart, lowerPart)
-        print(symmetryTest)
+        # print(symmetryTest)
         # print(upperPart[0,:])
         # print(lowerPart[0,:])
-    stats_data += symmetryTest
+    stats_data.append(symmetryTest)
       
   format_row = '{:>18}'*len(stats_data)
   # print(format_row.format(*stats_data))
   if output_path:
     with open(fname, 'a') as f:
-      f.write(format_row.format(*stats_data)+"\n")
+      f.write("\n"+format_row.format(*stats_data))
   else:
     print(format_row.format(*stats_data))
   # print()
@@ -174,5 +175,5 @@ def sortSimpleStatsPlenum(path):
     dat = np.loadtxt(fname, skiprows=1)
     ind = np.argsort( dat[:,0] ) # sort times col
     dat = dat[ind] # sort with this indices data
-    np.savetxt(''.join(fname.split('_unorderd')), dat, header=header, fmt='%.15f')
+    np.savetxt(''.join(fname.split('_unorderd')), dat, header=header, fmt='%1.11e')
     os.remove(fname)

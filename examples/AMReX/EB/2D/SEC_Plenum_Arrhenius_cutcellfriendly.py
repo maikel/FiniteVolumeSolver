@@ -49,7 +49,7 @@ plenum_y_length = plenum_y_upper - plenum_y_lower
 
 TVolRPlen = 1.0 * 20.4 * D #20.0 * D
 plenum_x_upper = TVolRPlen / plenum_y_length / magic_z_length
-print(plenum_x_upper)
+
 plenum_x_lower = -inlet_length
 plenum_x_length = plenum_x_upper - plenum_x_lower
 

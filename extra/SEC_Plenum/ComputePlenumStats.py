@@ -69,12 +69,12 @@ nSteps = times.shape[0]
 
 scalar_limits = io.getPassiveScalarLimits(plenum, 0, nSteps-1)
 
-dataManip.printSimpleStatsPlenumSingleTimepoint(np.zeros(2), 'Pressure', 1.0, 8, output_path, True, PARALLEL)
-dataManip.printSimpleStatsPlenumSingleTimepoint(np.zeros(2), 'Density', 1.0, 8, output_path, True, PARALLEL)
-dataManip.printSimpleStatsPlenumSingleTimepoint(np.zeros(2), 'Temperature', 1.0, 8, output_path, True, PARALLEL)
-dataManip.printSimpleStatsPlenumSingleTimepoint(np.zeros(2), 'PassiveScalar', 1.0, 8, output_path, True, PARALLEL)
+dataManip.printSimpleStatsPlenumSingleTimepoint(np.zeros(2), 'Pressure', 1.0, 8, output_path, True, PARALLEL, SYMMETRYCHECK)
+dataManip.printSimpleStatsPlenumSingleTimepoint(np.zeros(2), 'Density', 1.0, 8, output_path, True, PARALLEL, SYMMETRYCHECK)
+dataManip.printSimpleStatsPlenumSingleTimepoint(np.zeros(2), 'Temperature', 1.0, 8, output_path, True, PARALLEL, SYMMETRYCHECK)
+dataManip.printSimpleStatsPlenumSingleTimepoint(np.zeros(2), 'PassiveScalar', 1.0, 8, output_path, True, PARALLEL, SYMMETRYCHECK)
 
-def getPlenumStats(i, time, PARALLEL=PARALLEL):
+def getPlenumStats(i, time, PARALLEL=PARALLEL, SYMMETRYCHECK=SYMMETRYCHECK):
    if PARALLEL:
       print(f'sampling data from timepoint {round(time, 4)}')
    
