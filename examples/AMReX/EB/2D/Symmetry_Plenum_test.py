@@ -1,9 +1,9 @@
 import math
 
 # tube and plena x_ncells are yet decoupled!!
-tube_n_cells = 256 # 256 320 384
-plenum_x_n_cells = 64 # 64, 96, 128
-# corresponding plenum_y_ncells are 448, 672, 896
+tube_n_cells = 224 # 192 256 320 384
+plenum_x_n_cells = 58
+plenum_y_n_cells = 320
 
 tube_blocking_factor = 8
 plenum_blocking_factor = 32 #8
@@ -15,7 +15,7 @@ n_level = 1
 
 # tube_y0s = [-1.0/3.0, 0.0, +1.0/3.0]
 tube_y0s = [0.0]
-tube_length = 1.0 # [m]
+tube_length = 0.99 #1.0 # [m]
 
 n_tubes = len(tube_y0s)
 r_tube = 0.015
@@ -34,21 +34,22 @@ SEC_timin = 0.1 # default value 0.1
 diffusorStart = 1.0 * 0.25 # start point x-axis
 diffusorEnd = 0.75 # end point x-axis
 offset=-tube_length # tube begins at x=-1.0
-A0=1.0 # surface Area befor diffusor
+A0=4.0 # surface Area befor diffusor
 A1=4.0 # surface Area after diffusor
 
 # calculate plenum geometry
 magic_z_length = 1.0 # should be replaced when switch to 3d!!!
 
 # normally 3.0 * D # [m] # in old slanted case 10.0D
-inlet_length = 3.0 * D 
+inlet_length = 6.0 * D 
 
 plenum_y_lower = - 1.2
 plenum_y_upper = + 1.2
 plenum_y_length = plenum_y_upper - plenum_y_lower
 
-TVolRPlen = 1.0 * 20.0 * D #20.0 * D
+TVolRPlen = 1.0 * 20.4 * D #20.0 * D
 plenum_x_upper = TVolRPlen / plenum_y_length / magic_z_length
+
 plenum_x_lower = -inlet_length
 plenum_x_length = plenum_x_upper - plenum_x_lower
 
@@ -62,7 +63,6 @@ tube_domain_length = tube_length - inlet_length
 tube_over_plenum_length_ratio = tube_domain_length / plenum_domain_length
 plenum_over_tube_length_ratio = 1.0 / tube_over_plenum_length_ratio
 
-# TODO comment in for coupling tube_n_cells with Plenum
 # plenum_x_n_cells = tube_n_cells * plenum_over_tube_length_ratio
 # plenum_x_n_cells -= plenum_x_n_cells % plenum_blocking_factor
 # plenum_x_n_cells = int(plenum_x_n_cells)
@@ -73,10 +73,9 @@ plenum_z_length = plenum_z_upper - plenum_z_lower
 
 plenum_y_over_x_ratio = plenum_y_length / plenum_x_length
 
-plenum_y_n_cells = plenum_x_n_cells * plenum_y_over_x_ratio
-plenum_y_n_cells -= plenum_y_n_cells % plenum_blocking_factor
-plenum_y_n_cells = int(plenum_y_n_cells)
-
+# plenum_y_n_cells = plenum_x_n_cells * plenum_y_over_x_ratio
+# plenum_y_n_cells -= plenum_y_n_cells % plenum_blocking_factor
+# plenum_y_n_cells = int(plenum_y_n_cells)
 plenum_z_over_x_ratio = plenum_z_length / plenum_x_length
 
 plenum_z_n_cells = plenum_x_n_cells * plenum_z_over_x_ratio
@@ -99,12 +98,12 @@ plenum_dz = plenum_z_length / plenum_z_n_cells
 
 
 # outputPath = 'test_oneTube_vol40_y0.48'
-outputPath = 'sec_fullboundary_vol{}_y{}_tx{}_px{}_py{}_xi0_{}_buf{}'.format(TVolRPlen/D, plenum_y_upper, tube_n_cells, plenum_x_n_cells, plenum_y_n_cells, diffusorStart, SEC_buffer)
+outputPath = 'symmetryTest_cutcellbox_vol{}_y{}_tx{}_px{}_py{}'.format(round(TVolRPlen/D, 2), plenum_y_upper, tube_n_cells, plenum_x_n_cells, plenum_y_n_cells)
 # outputPath = 'sec_vol{}_y{}_tx{}_xi0_{}_buf{}_tti{}_timin{}'.format(TVolRPlen/D, plenum_y_upper, tube_n_cells, diffusorStart, SEC_buffer, SEC_tti, SEC_timin)
 
 RunOptions = {
   'cfl': 0.1125,# / float(tube_n_cells / 64),
-  'final_time': 400.0,
+  'final_time': 10.0,
   'max_cycles': -1,
   'do_backup': 0
 }
@@ -255,6 +254,13 @@ def BoxWhichContains_withGhostcells(real_box, gcw_x, gcw_y):
 
 Plenum = {
   'checkpoint': checkpoint,
+  'initial_conditions': {
+    'initially_filled_x': 0.01,
+    'rho_right': 0.125,
+    'p_right': 0.1,
+    'rho_left': 1., #0.125, #1.0,
+    'p_left': 100., #0.1, #10.0
+  },
   'GridGeometry': {
     'cell_dimensions': [plenum_x_n_cells, plenum_y_n_cells, plenum_z_n_cells],
     'coordinates': {
@@ -354,7 +360,13 @@ Tube_FluxMethod['area_variation'] = Area
 
 Tubes = [{
   'checkpoint': checkpoint if checkpoint == '' else '{}/Tube_{}'.format(checkpoint, i),
-  'initially_filled_x': 0.4,
+  'initial_conditions': {
+    'initially_filled_x': 0.95,
+    'rho_left': 1., #1.0,
+    'p_left': 100., #10.0,
+    'rho_right': 1.,
+    'p_right': 100.
+  },
   'FluxMethod': Tube_FluxMethod,
   'plenum_mirror_box': PlenumMirrorBox(y_0),
   'GridGeometry': {
@@ -411,20 +423,20 @@ Output = {
     'intervals': [plenum_intervals],
     # 'frequencies': [1]
   },
-#  {
-#    'type': 'Plotfiles',
-#    'directory': '{}/Plotfiles/'.format(outputPath),
-#    'intervals': [0.01],
-#  },
+ {
+   'type': 'Plotfiles',
+   'directory': '{}/Plotfiles/'.format(outputPath),
+   'intervals': [0.01],
+ },
   {
    'type': 'CounterOutput',
   #  'intervals': [1/.0]
     'frequencies': [10000]
   },
-  {
-    'type': 'Checkpoint',
-    'intervals': [10.0],
-    'directory': '{}/Checkpoint/'.format(outputPath)
-  }
+  # {
+  #   'type': 'Checkpoint',
+  #   'intervals': [10.0],
+  #   'directory': '{}/Checkpoint/'.format(outputPath)
+  # }
   ]
 }

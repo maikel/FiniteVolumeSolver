@@ -68,7 +68,7 @@ except:
 
 plenum = "{}/Plenum.h5".format(dataPath)
 outPath = '{}/Visualization/'.format(dataPath)
-output_path = '{}/Plenum/'.format(outPath)
+output_path = '{}/PlenumStartup/'.format(outPath)
 
 # Get times and nSteps from plenum
 print('Read times from {}'.format(plenum))
@@ -76,35 +76,21 @@ times = io.h5_load_timepoints(plenum)
 nSteps = times.shape[0]
 print('Found {} timepoints/steps'.format(nSteps))
 
-#--------------------------------------------
-# plot values
-INSETAXIS = True
 # optional slicing in time-dimension
-tplotmin = 0. #200.0
-# splittedPath = dataPath.rsplit('/',1)[-2] #-2 because / at the end
-# if 'vol40.0' in splittedPath:
-#    tplotmin = 200.0
-# elif 'vol20.0' in splittedPath:
-#    tplotmin = 145.0
-tplotmax = 400.0
+tplotmin = 0.
+tplotmax = 160.
 t_bool_array = (times>=tplotmin) & (times<=tplotmax)
 t_index_array = np.nonzero(t_bool_array)[0] # returns tuple: (array([10 11 ...]), )
 
 # check if index array is empty
 if not np.any(t_index_array):
    raise IndexError('time index array is empty!')
-#-------------------------------------------------
+
 
 # get data from output dictionary
 output_dict = Output['outputs']
-output_dict_samples = []
+output_dict = [ out_dict for out_dict in output_dict if 'which_block' in out_dict] # strip 'CounterOutput'
 for out_dict in output_dict:
-   if 'which_block' in out_dict:
-      output_dict_samples.append(out_dict)
-   if 'Control' in out_dict['type']:
-      output_dict_samples.append(out_dict)
-
-for out_dict in output_dict_samples:
    # get only the file names without the prefix dir names
    out_path = out_dict['path'].rsplit('/',1)[-1]
    if 'Plenum' in out_path:
@@ -121,28 +107,18 @@ for out_dict in output_dict_samples:
          tube_out = float(out_dict['intervals'][0])
       else:
          raise Exception("could not find output frequency or interval from tube")
-   elif 'ControlState' in out_path: # assume all tubes have same frequency or intervals
-      if 'frequencies' in out_dict:
-         cs_out = int(out_dict['frequencies'][0])
-      elif 'intervals' in out_dict:
-         cs_out = float(out_dict['intervals'][0])
-      else:
-         raise Exception("could not find output frequency or interval from tube")
 
 # get the interval ratio from plenum and tubes
 # normally we write the tube data 4 times more often than the plenum data
-tubeToPlenum_output_factor = int(plenum_out / tube_out)
-# print(tubeToPlenum_output_factor, plenum_out, tube_out)
-csToTube_output_factor = int(tube_out / cs_out)
-# print(csToTube_output_factor, tube_out, cs_out)
+tube_output_factor = int(plenum_out / tube_out)
+# print(tube_output_factor, plenum_out, tube_out)
 
-
-print('Load passive scalar limits for scaling the contourf plot.')
+print('LOad passive scalar limits for scaling right the contourf plot.')
 scalar_limits = io.getPassiveScalarLimits(plenum, t_index_array[0], t_index_array[-1])
 
 titles = ['Pressure', 'Temperature',  'Passive Scalar', 'Velocity']
 def props(title):
-   nlevels = 96
+   nlevels = 101
    props = {
       # 'origin': 'lower',
       # 'interpolation': 'none',
@@ -160,13 +136,11 @@ def props(title):
          }
       )
    if  title == 'Temperature':
-      minT = 6.*T_ref
-      maxT = 12.5*T_ref
+      minT = 7.*T_ref
+      maxT = 12*T_ref
       scaleT = 25
-      # nlevelsT = 61 #int(maxT-minT)//scaleT
-      # levels = np.linspace(minT, maxT, nlevelsT )
-      levels = np.arange(minT, maxT, scaleT)
-      levels = np.append(levels, maxT)
+      nlevelsT = 61 #int(maxT-minT)//scaleT
+      levels = np.linspace(minT, maxT, nlevelsT )
       props.update(
          {
             'levels': levels,
@@ -184,6 +158,16 @@ def props(title):
       #    'vmax': 10.*T_ref,
       #    # 'cmap': 'jet'
       #    }
+   if title == 'Pressure':
+      levels = np.linspace(2.0, 6.0, nlevels)
+      props.update(
+         {
+         'levels': levels,
+         'vmin': levels[0],
+         'vmax': levels[-1],
+         'cmap': 'jet'
+         }
+      )
    if title == 'Species':
       levels = np.linspace(0., 1., nlevels)
       props.update(
@@ -193,18 +177,6 @@ def props(title):
          'vmax': levels[-1],
          'cmap': 'gray_r',
          'extend': 'neither'
-         }
-      )
-   if title == 'Pressure':
-      # levels = np.linspace(1.0, 20., nlevels)
-      levels = np.arange(2.0, 20., 0.2)
-      levels = np.append(levels, 20.)
-      props.update(
-         {
-         'levels': levels,
-         'vmin': levels[0],
-         'vmax': levels[-1],
-         'cmap': 'jet'
          }
       )
    if title == 'Velocity':
@@ -222,9 +194,6 @@ def PrintProgress(i):
 os.makedirs(output_path, exist_ok=True)
 
 tube_paths = ['{}/Tube{}.h5'.format(dataPath, tube) for tube in range(n_tubes)]
-if n_tubes>1:
-   INSETAXIS=False
-   print('Option INSETAXIS was set to False, because ntubes={}>1 !'.format(n_tubes))
 
 def stackTubeDataTo2D(Tube_datalist):
    # all Tubedata is 1D but for contourf we need at least 2D data. so simply stack twice the 1d array
@@ -233,40 +202,10 @@ def stackTubeDataTo2D(Tube_datalist):
       Tube_datalist[i] = np.stack((el,el))
    return Tube_datalist
 
-def getValveState(tubePressure, csPressure):
-   if csPressure>tubePressure:
-      state = [0,1] # open
-      # print('valve open because {} > {}'.format(csPressure, tubePressure))
-   else:
-      state = [1,0] # closed
-      # print('valve closed because {} <= {}'.format(csPressure, tubePressure))
-   return state
-
-def find_nearest(array, value):
-   array = np.asarray(array)
-   idx = (np.abs(array - value)).argmin()
-   return array[idx], idx
-
-def getTubeShape(tube_extent):
-   midpoint = 0.5 * (tube_extent[2] + tube_extent[3])
-   x = np.linspace(tube_extent[0], tube_extent[1], tube_n_cells)
-   areaVariation = np.array([Area(xi) for xi in x])
-   # print('areavar: min {} max {}'.format(np.min(areaVariation), np.max(areaVariation)))
-   y_upper = midpoint + areaVariation * 0.5 * diameter_tube
-   y_lower = midpoint - areaVariation * 0.5 * diameter_tube
-   # y_upper_scale = 0.# 0.2
-   # y_upper += y_upper_scale*np.max(y_upper) # increase y_upper by y_upper_scale (in percent) to avoid overlapping in the image
-   tube_extent[2] = np.min(y_lower)
-   tube_extent[3] = np.max(y_upper)
-   # print('tube_extent = {}'.format(tube_extent))
-   y_lower = [y_lower, tube_extent[2]]
-   y_upper = [y_upper, tube_extent[3]]
-   return tube_extent, y_lower, y_upper, x
-
-dataManip.printSimpleStatsPlenumSingleTimepoint(np.zeros(2), 'Pressure', 1.0, 8, output_path, True, PARALLEL)
-dataManip.printSimpleStatsPlenumSingleTimepoint(np.zeros(2), 'Density', 1.0,  8, output_path, True, PARALLEL)
-dataManip.printSimpleStatsPlenumSingleTimepoint(np.zeros(2), 'Temperature', 1.0,  8, output_path, True, PARALLEL)
-dataManip.printSimpleStatsPlenumSingleTimepoint(np.zeros(2), 'PassiveScalar', 1.0,  8, output_path, True, PARALLEL)
+# dataManip.printSimpleStatsPlenumSingleTimepoint(np.zeros(2), 'Pressure', 1.0, 8, output_path, True, PARALLEL)
+# dataManip.printSimpleStatsPlenumSingleTimepoint(np.zeros(2), 'Density', 1.0,  8, output_path, True, PARALLEL)
+# dataManip.printSimpleStatsPlenumSingleTimepoint(np.zeros(2), 'Temperature', 1.0,  8, output_path, True, PARALLEL)
+# dataManip.printSimpleStatsPlenumSingleTimepoint(np.zeros(2), 'PassiveScalar', 1.0,  8, output_path, True, PARALLEL)
 
 def plotFigure(i, PARALLEL=False):
    if PARALLEL:
@@ -276,47 +215,27 @@ def plotFigure(i, PARALLEL=False):
    Tube_p = []
    Tube_X = []
    Tube_fuel = []
+   Tube_temperature = []
    tube_extents = []
    tube_variables = ["Pressure", "PassiveScalars", "Density", "Species"]
 
    for tube in tube_paths:
-      tube_data, tubeTime, ext, tube_dict = io.h5_load_spec_timepoint_variable(tube, tubeToPlenum_output_factor*i, tube_variables)
+      tube_data, current_time, ext, tube_dict = io.h5_load_spec_timepoint_variable(tube, tube_output_factor*i, tube_variables)
       Tube_p.append(tube_data[tube_dict['Pressure']])
       Tube_X.append( tube_data[tube_dict['PassiveScalars']] / tube_data[tube_dict['Density']] )
       Tube_fuel.append( tube_data[tube_dict['Species']] / tube_data[tube_dict['Density']] )
+      Tube_temperature.append(tube_data[tube_dict['Pressure']] / tube_data[tube_dict['Density']])
       tube_extents.append(ext)
    
    Tube_p = stackTubeDataTo2D(Tube_p)
    Tube_X = stackTubeDataTo2D(Tube_X)
    Tube_fuel = stackTubeDataTo2D(Tube_fuel)
-   
-   if INSETAXIS:
-      timeStamp = csToTube_output_factor * tubeToPlenum_output_factor * i
-      
-      shift = 100
-      if not timeStamp<compressor_pressure.shape[1]:
-         shift *=5
-      
-      # quick fix if ControlState-times didn't match
-      try:
-         print('tubetime = {} vs. cstime = {}'.format(tubeTime, compressor_pressure[0,timeStamp]))
-         if not np.isclose(tubeTime, compressor_pressure[0,timeStamp]):
-            _, idx = find_nearest(compressor_pressure[0,timeStamp-shift:timeStamp+shift], tubeTime)
-            timeStamp += idx-shift
-            print('BUGFIX is used: new cstime = {}'.format(tubeTime, compressor_pressure[0,timeStamp]))
-      except:
-         print('tubetime = {} vs. cstime = {}'.format(tubeTime, compressor_pressure[0,timeStamp]))
-         if not np.isclose(tubeTime, compressor_pressure[0,timeStamp-shift]):
-            _, idx = find_nearest(compressor_pressure[0,timeStamp-2*shift:], tubeTime)
-            timeStamp += idx-2*shift
-            print('BUGFIX is used: new cstime = {}'.format(tubeTime, compressor_pressure[0,timeStamp]))
-
-      valveStates = [ getValveState(Tube_p[tube][0,0], compressor_pressure[1,timeStamp]) for tube in range(len(Tube_p)) ]
+   Tube_temperature = stackTubeDataTo2D(Tube_temperature)
    
    plenum_variables = ["Pressure", "Density", "Momentum_0", "Momentum_1", "PassiveScalars", 'vfrac']
    # # alternative:
-   # (pressure, rho, rhoU, rhoV, rhoX, vols), plenaTime, plenum_extent, plenum_dict = io.h5_load_spec_timepoint_variable(plenum, i, plenum_variables)
-   plenum_data, plenaTime, plenum_extent, plenum_dict = io.h5_load_spec_timepoint_variable(plenum, i, plenum_variables)
+   # (pressure, rho, rhoU, rhoV, rhoX, vols), current_time, plenum_extent, plenum_dict = io.h5_load_spec_timepoint_variable(plenum, i, plenum_variables)
+   plenum_data, current_time, plenum_extent, plenum_dict = io.h5_load_spec_timepoint_variable(plenum, i, plenum_variables)
    volume_fraction = plenum_data[plenum_dict['vfrac']]
 
    volume_fraction_offset = 1.e-14
@@ -327,67 +246,86 @@ def plotFigure(i, PARALLEL=False):
    passiveScalarMF = np.ma.masked_array(plenum_data[plenum_dict['PassiveScalars']], volume_fraction < volume_fraction_offset) / rho
    temperature = pressure / rho
 
-   # # print out the first occurence of min/max value 
-   dataManip.printSimpleStatsPlenumSingleTimepoint(pressure, 'Pressure', plenaTime, output_path=output_path, PARALLEL=PARALLEL)
-   dataManip.printSimpleStatsPlenumSingleTimepoint(rho, 'Density', plenaTime, output_path=output_path, PARALLEL=PARALLEL)
-   dataManip.printSimpleStatsPlenumSingleTimepoint(temperature, 'Temperature', plenaTime, output_path=output_path, PARALLEL=PARALLEL)
-   dataManip.printSimpleStatsPlenumSingleTimepoint(passiveScalarMF, 'PassiveScalar', plenaTime, output_path=output_path, PARALLEL=PARALLEL)
+   # # # print out the first occurence of min/max value 
+   # dataManip.printSimpleStatsPlenumSingleTimepoint(pressure, 'Pressure', current_time, output_path=output_path, PARALLEL=PARALLEL)
+   # dataManip.printSimpleStatsPlenumSingleTimepoint(rho, 'Density', current_time, output_path=output_path, PARALLEL=PARALLEL)
+   # dataManip.printSimpleStatsPlenumSingleTimepoint(temperature, 'Temperature', current_time, output_path=output_path, PARALLEL=PARALLEL)
+   # dataManip.printSimpleStatsPlenumSingleTimepoint(passiveScalarMF, 'PassiveScalar', current_time, output_path=output_path, PARALLEL=PARALLEL)
 
 
    f, axs = plt.subplots(nrows=2, ncols=2, figsize=(20. / 2, 15. / 2), gridspec_kw={'width_ratios': [4,2]}, constrained_layout=True)
    axs = axs.flatten()
-   f.suptitle('Time = {:.2f}'.format(plenaTime))
-
+   f.suptitle('Time = {:.2f}'.format(current_time))
+   
    #################################################
    # pressure image
    im_p = axs[0].contourf(pressure, extent=plenum_extent, **props(titles[0]))
-   for tube_extent, tube_p, valveState in zip(tube_extents, Tube_p, valveStates):
-      tube_extent, y_lower, y_upper, tube_xLinspace = getTubeShape(tube_extent)
-      
+   for tube_extent, tube_p in zip(tube_extents, Tube_p):
+      midpoint = 0.5 * (tube_extent[2] + tube_extent[3])
+      x = np.linspace(tube_extent[0], tube_extent[1], tube_n_cells)
+      y_upper = midpoint + 0.5 * np.array([Area(xi) for xi in x]) * diameter_tube
+      y_lower = midpoint - 0.75 * np.array([Area(xi) for xi in x]) * diameter_tube # nobody knows why 0.75 works better as 0.5 ...
+      y_upper_scale = 0.2
+      y_upper += y_upper_scale*np.max(y_upper) # increase y_upper by y_upper_scale (in percent) to avoid overlapping in the image
+      lower = midpoint - 2.0 * diameter_tube
+      upper = midpoint + 2.0 * diameter_tube
+      tube_extent[2] = lower
+      tube_extent[3] = upper
       im_p = axs[0].contourf(tube_p, extent=tube_extent, **props(titles[0]))
-      axs[0].fill_between(tube_xLinspace, y_upper[0], y_upper[1], color='white') # 4*max/min if area is not increasing!
-      axs[0].fill_between(tube_xLinspace, y_lower[0], y_lower[1], color='white')
-
-      if INSETAXIS:
-         # plot valve state
-         axins_valve = axs[0].inset_axes([0.15, 0.05, 0.15, 0.2])
-         axins_valve.barh([0,1], valveState, align='center', tick_label=['closed', 'open'])
-         axins_valve.set_xlim(0,1)
-         axins_valve.set_title('inflow valve state')
-         axins_valve.set_xticks([])
-      
+      axs[0].fill_between(x, y_upper, np.max(y_upper), color='white')
+      axs[0].fill_between(x, y_lower, np.min(y_lower), color='white')
    axs[0].set_title(titles[0])
    cbar = plt.colorbar(im_p, ax=axs[0])
    cbar.set_label('[bar]', rotation=270, labelpad=15)
 
-   if INSETAXIS:
-      from mpl_toolkits.axes_grid1.inset_locator import inset_axes
-      # inset axes....
-      axins_fuel = axs[0].inset_axes([0.05, 0.65, 0.4, 0.3])
-      im_fuel = axins_fuel.contourf(Tube_fuel[0], extent=tube_extent, **props('Species'))
-      axins_fuel.fill_between(tube_xLinspace, y_upper[0], y_upper[1], color='white')
-      axins_fuel.fill_between(tube_xLinspace, y_lower[0], y_lower[1], color='white')
-      axins_fuel.plot(tube_xLinspace, y_upper[0], 'k--')
-      axins_fuel.plot(tube_xLinspace, y_lower[0], 'k--')
-      # sub region of the original image
-      epsilon = 0.5 * diameter_tube
-      x1, x2, y1, y2 = tube_extent[0], -0.5, tube_extent[2]-epsilon, tube_extent[3]+epsilon
-      axins_fuel.set_xlim(x1, x2)
-      axins_fuel.set_ylim(y1, y2)
-      #axins_fuel.set_xticklabels([])
-      axins_fuel.set_yticklabels([])
-      axs[0].indicate_inset_zoom(axins_fuel, edgecolor="black")
-      cax = inset_axes(axins_fuel,
-                  width="5%",  # width = 10% of parent_bbox width
-                  height="100%",  # height : 50%
-                  loc='lower left',
-                  bbox_to_anchor=(1.05, 0., 1, 1),
-                  bbox_transform=axins_fuel.transAxes,
-                  borderpad=0,
-                  )
-      # cax = axs[0].inset_axes([0.05+0.4, 0.5, 0.05, 0.4])
-      cbar = plt.colorbar(im_fuel, cax=cax, ticks=[np.linspace(0.,1.,5)])
-      cbar.set_label('Fuel [-]', rotation=270, labelpad=15)
+   from mpl_toolkits.axes_grid1.inset_locator import inset_axes
+   # inset axes....
+   axins_fuel = axs[0].inset_axes([0.05, 0.6, 0.4, 0.3])
+   im_fuel = axins_fuel.contourf(Tube_fuel[0], extent=tube_extent, **props('Species'))
+   axins_fuel.fill_between(x, y_upper, np.max(y_upper), color='white')
+   axins_fuel.fill_between(x, y_lower, np.min(y_lower), color='white')
+   # sub region of the original image
+   x1, x2, y1, y2 = tube_extent[0], -0.5, lower, upper
+   axins_fuel.set_xlim(x1, x2)
+   axins_fuel.set_ylim(y1, y2)
+   axins_fuel.set_xticklabels([])
+   axins_fuel.set_yticklabels([])
+   axs[0].indicate_inset_zoom(axins_fuel, edgecolor="black")
+   cax = inset_axes(axins_fuel,
+                 width="5%",  # width = 10% of parent_bbox width
+                 height="100%",  # height : 50%
+                 loc='lower left',
+                 bbox_to_anchor=(1.05, 0., 1, 1),
+                 bbox_transform=axins_fuel.transAxes,
+                 borderpad=0,
+                 )
+   # cax = axs[0].inset_axes([0.05+0.4, 0.5, 0.05, 0.4])
+   cbar = plt.colorbar(im_fuel, cax=cax, ticks=[np.linspace(0.,1.,5)])
+   cbar.set_label('Fuel [-]', rotation=270, labelpad=15)
+  
+   # plot in ax3 only upper half of the tube
+   tube_extent_insetpressure = tube_extent.copy()
+   tube_extent_insetpressure[2] = 0.
+
+   # plot in ax4 the lower part
+   tube_extent_insettemperature = tube_extent.copy()
+   tube_extent_insettemperature[3] = 0.
+   
+   # inset axes....
+   axins_pressure = axs[0].inset_axes([0.05, 0.1, 0.4, 0.3])
+   axins_pressure.contourf(Tube_p[0], extent=tube_extent_insetpressure, **props('Pressure'))
+   axins_pressure.contourf(Tube_temperature[0]*T_ref, extent=tube_extent_insettemperature, **props('Temperature'))
+   
+   axins_pressure.fill_between(x, y_upper, np.max(y_upper), color='white')
+   axins_pressure.fill_between(x, y_lower, np.min(y_lower), color='white')
+   # sub region of the original image
+   x1, x2, y1, y2 = tube_extent[0], -0.5, lower, upper
+   axins_pressure.set_xlim(x1, x2)
+   axins_pressure.set_ylim(y1, y2)
+   #axins_pressure.set_xticklabels([])
+   axins_pressure.set_yticklabels([])
+   axs[0].indicate_inset_zoom(axins_pressure, edgecolor="black")
+   
    
    #################################################
    # temperature image
@@ -404,10 +342,14 @@ def plotFigure(i, PARALLEL=False):
    
    im_X = axs[2].contourf(passiveScalarMF, extent=plenum_extent, **props(titles[2]))
    for tube_extent, tube_X in zip(tube_extents, Tube_X):
-      tube_extent, y_lower, y_upper, tube_xLinspace = getTubeShape(tube_extent)
+      midpoint = 0.5 * (tube_extent[2] + tube_extent[3])
+      x = np.linspace(tube_extent[0], tube_extent[1], tube_n_cells)
+      y_upper = midpoint + 0.5 * np.array([Area(xi) for xi in x]) * diameter_tube
+      y_lower = midpoint - 0.5 * np.array([Area(xi) for xi in x]) * diameter_tube
+      y_upper += y_upper_scale*np.max(y_upper) # increase y_upper by y_upper_scale (in percent) to avoid overlapping in the image
       im_X = axs[2].contourf(tube_X, extent=tube_extent, **props(titles[2]))
-      axs[2].fill_between(tube_xLinspace, y_upper[0], y_upper[1], color='white')
-      axs[2].fill_between(tube_xLinspace, y_lower[0], y_lower[1], color='white')
+      axs[2].fill_between(x, y_upper, np.max(y_upper), color='white')
+      axs[2].fill_between(x, y_lower, np.min(y_lower), color='white')
    axs[2].set_title(titles[2])
    cbar = plt.colorbar(im_X, ax=axs[2])
 
@@ -422,9 +364,9 @@ def plotFigure(i, PARALLEL=False):
 
    x = np.linspace(*plenum_extent[0:2], num=velU[::skip, ::skip].shape[1], endpoint=True)
    y = np.linspace(*plenum_extent[2:], num=velU[::skip, ::skip].shape[0], endpoint=True)
-   X,Y = np.meshgrid(x,y)
-   # Q = axs[3].quiver(X, Y, velU[::skip,::skip], velV[::skip,::skip], scale=u_ref, units='inches', width=0.01)
-   Q = axs[3].quiver(X, Y, velU[::skip,::skip], velV[::skip,::skip], **props_dict)
+   passiveScalarMF,Y = np.meshgrid(x,y)
+   # Q = axs[3].quiver(passiveScalarMF, Y, velU[::skip,::skip], velV[::skip,::skip], scale=u_ref, units='inches', width=0.01)
+   Q = axs[3].quiver(passiveScalarMF, Y, velU[::skip,::skip], velV[::skip,::skip], **props_dict)
    axs[3].quiverkey(Q, 0.5, 1.05, 1./props_dict['scale'], '{}'.format(round(u_ref,1))+r'$ \frac{m}{s}$', labelpos='E', coordinates='axes')
    # axs[3].set_title('Velocity Field')
    # axs[3].set(aspect='equal')
@@ -434,14 +376,6 @@ def plotFigure(i, PARALLEL=False):
    f.clear()
    plt.close(f)
 
-if INSETAXIS:
-   cs_data, cs_times, cs_datas_dict = io.h5_load_timeseries("{}/ControlState.h5".format(dataPath))
-   compressor_pressure = cs_data[:,cs_datas_dict['compressor_pressure']]
-   # print(cs_times.shape)
-   compressor_pressure = np.vstack((cs_times, compressor_pressure))
-   # compressor_pressure = compressor_pressure.T
-   del cs_data, cs_datas_dict
-
 if PARALLEL:
    values = ((i,PARALLEL) for i in t_index_array)
 
@@ -450,6 +384,7 @@ if PARALLEL:
 else:
    for i in t_index_array:
       plotFigure(i)
+      exit()
 
 # sort unorderd data and save them to disk
 if PARALLEL:
@@ -460,6 +395,6 @@ try:
    # os.system('ffmpeg -framerate 20 -i {}/Figure%05d.png -crf 20 {}/../Movie.mkv'.format(output_path, output_path))
 
    # use start_number if not starting at File_00000.png
-   os.system('ffmpeg -start_number {} -framerate 20 -i {}/Figure%5d.png -crf 20 {}/../PlenumMovie.mkv'.format(t_index_array[0], output_path, output_path))
+   os.system('ffmpeg -start_number {} -framerate 20 -i {}/Figure%5d.png -crf 20 {}/../PlenumMovieStartup.mkv'.format(t_index_array[0], output_path, output_path))
 except:
    print('ffmpeg could not be started')

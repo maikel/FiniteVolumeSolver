@@ -41,6 +41,60 @@ def h5_load_spec_timepoint_variable(filename, num, variables):
   file.close()
   return tuple(datas), time, extent, dictionary
 
+def h5_load_several_timepoints_variable(filename, start, end, variables, step=1):
+  """
+  Load the with 'variables' specified 2D data from the HDF5 file for a given timepoint.
+
+  Parameters
+  ----------------------------------------
+    filename:   string
+                name of the HDF5-file
+    start, end: integers
+                number of timepoints
+    variables:  list of strings
+                list of variables to extract data
+    step:       optional integer
+                adjust the step for the slice, e.g. for tube data
+
+  Returns
+  ----------------------------------------
+    datas:        tuple of numpy arrays
+                  the loaded datas from the HDF5-file
+    time:         list of floats
+                  the time points from the data
+    extent:       list of floats
+                  the physical extension from the dataset,
+                  something like [xlo, xhi, ylo, yhi]
+    dictionary:   dict
+                  dictionary that matches the variable names to their index
+  """
+  num = slice(start, end, step)
+  file = h5py.File(filename, mode='r', swmr=True)
+  strings = list(file['fields'].asstr())
+  indices = [strings.index(var) for var in variables]
+  dictionary = dict( zip(variables, range(len(variables))))
+  shape = file['data'].shape
+  nx = np.array([shape[2], shape[3]])
+  # datas = [np.reshape(np.array(file['data'][num, var, :, :]), [nx[1], nx[0]])  for var in indices]
+  datas = []
+  for var in indices:
+    temp = np.array(file['data'][num, var, :, :])
+    temp2 = np.ones((temp.shape[0], nx[1], nx[0]))
+    print(temp.shape)
+    for row in range(temp.shape[0]):
+      temp2[row] = temp[row].reshape(nx[1], nx[0])
+    print(temp2.shape)
+    datas.append(temp)
+    del temp2
+    # exit()
+  time = [float(el) for el in file['times'][num]]
+  dx = np.array(file['data'].attrs['cell_size'])
+  xlower = np.array(file['data'].attrs['xlower'])
+  xupper = xlower + dx * nx
+  extent = [xlower[0], xupper[0], xlower[1], xupper[1]]
+  file.close()
+  return tuple(datas), time, extent, dictionary
+
 def h5_load_timeseries(filename):
   """
   Load all the 1D data from HDF5 file for all time points.
@@ -150,6 +204,18 @@ def h5_load_restartedTimeseries(basePath):
     datas = np.concatenate((datas, data))
     times = np.concatenate((times, time))
   return datas, time, datas_dict
+
+def getPassiveScalarLimits(plenumFile, first, last):
+   (rho, rhoX, vols), _, _, _ = h5_load_spec_timepoint_variable(plenumFile, first, ["Density", "PassiveScalars", "vfrac"])
+   rho = np.ma.masked_array(rho, vols < 1e-14)
+   min = np.min(rhoX / rho)
+
+   (rho, rhoX, vols), _, _, _ = h5_load_spec_timepoint_variable(plenumFile, last, ["Density", "PassiveScalars", "vfrac"])
+   rho = np.ma.masked_array(rho, vols < 1e-14)
+   max = np.max(rhoX / rho)
+
+   return np.rint((min, max))
+
 
 #--------------------------------------------------
 # functions to load data generated with Prof. Klein's 1D Code

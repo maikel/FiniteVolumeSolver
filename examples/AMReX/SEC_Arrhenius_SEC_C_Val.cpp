@@ -26,6 +26,8 @@
 #include "fub/equations/PerfectGasMix.hpp"
 #include "fub/flux_method/MusclHancockMethod2.hpp"
 
+#include "fub/ext/CopyInputFile.hpp"
+
 #include "fub/AMReX/boundary_condition/GenericPressureValveBoundary.hpp"
 #include "fub/AMReX/boundary_condition/IsentropicPressureExpansion.hpp"
 #include "fub/AMReX/boundary_condition/TurbinePlenumBoundaryCondition.hpp"
@@ -533,6 +535,8 @@ int main(int argc, char** argv) {
   pybind11::scoped_interpreter interpreter{};
   std::optional<fub::ProgramOptions> opts = fub::ParseCommandLine(argc, argv);
   if (opts) {
+    fub::CopyInputFile(MPI_COMM_WORLD,
+                       fub::GetOptions(*opts, "InputFileOptions"), argc, argv);
     fub::InitializeLogging(MPI_COMM_WORLD,
                            fub::GetOptions(*opts, "LogOptions"));
     MyMain(*opts);

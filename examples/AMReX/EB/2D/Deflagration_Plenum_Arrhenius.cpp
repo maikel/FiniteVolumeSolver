@@ -1,5 +1,5 @@
-// Copyright (c) 2021 Maikel Nadolski
-// Copyright (c) 2021 Christian Zenker
+// Copyright (c) 2022 Maikel Nadolski
+// Copyright (c) 2022 Christian Zenker
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -303,7 +303,7 @@ auto MakeTubeSolver(
   FUB_ASSERT(control_state);
 
   //!!!!!!!!!!!!!!// begin Deflagrationvalve
-  /*
+  
 
   auto combustor_inflow_function =
       [prim = fub::Primitive<fub::PerfectGasMix<1>>(equation)](
@@ -344,7 +344,7 @@ auto MakeTubeSolver(
     fub::amrex::DeflagrationValve valve(equation, control_state,
     combustor_inflow_function);
 
-  */
+ 
   //!!!!!!!!!!!!!!// End Defagrationvalve
 
   //!!!!!!!!!!!!!!// Begin PressureValveBoundary_Klein
@@ -406,7 +406,7 @@ auto MakeTubeSolver(
   //!!!!!!!!!!!!!!// End PressureValveBoundary_Klein
 
   //!!!!!!!!!!!!!!// Begin SwitchDeflagrationToSECValve
-
+/* 
   fub::ProgramOptions SEC_options =
       fub::GetOptions(options, "InflowOptionsSEC");
   double SEC_buffer = fub::GetOptionOr(SEC_options, "SEC_buffer", 0.06);
@@ -499,7 +499,7 @@ auto MakeTubeSolver(
 
   fub::amrex::SwitchDeflagrationToSECValve valve(equation, control_state,
                                                  switch_to_SEC_inflow_function);
-
+ */
   //!!!!!!!!!!!!!!// End SwitchDeflagrationToSECValve
 
   BoundarySet boundaries{{valve}};

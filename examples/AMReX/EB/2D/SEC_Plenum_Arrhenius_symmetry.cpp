@@ -595,12 +595,20 @@ auto MakePlenumSolver(
                     std::pair{xhi, y_0 + r2}, std::pair{xhi, y_0 - r2},
                     std::pair{xdiv, y_0 - r}, std::pair{xlo, y_0 - r},
                     std::pair{xlo, y_0 + r});
+    // auto polygon =
+    //     MakePolygon(std::pair{xlo, y_0 + r}, 
+    //                 std::pair{xhi, y_0 + r2}, 
+    //                 std::pair{xhi, y_0 - r2},
+    //                 std::pair{xlo, y_0 - r},
+    //                 std::pair{xlo, y_0 + r});
+    
     inlets.push_back(polygon);
   }
   fub::PolymorphicUnion<Plenum_Rank> union_of_inlets(std::move(inlets));
 
   auto embedded_boundary = amrex::EB2::makeIntersection(
       amrex::EB2::PlaneIF({0.0, 0.0}, {1.0, 0.0}, false),
+      amrex::EB2::BoxIF({-0.06, -0.06}, {0.06, 0.06}, true),
       fub::amrex::Geometry(fub::Invert(union_of_inlets)));
   auto shop = amrex::EB2::makeShop(embedded_boundary);
 

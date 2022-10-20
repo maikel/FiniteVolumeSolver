@@ -17,9 +17,12 @@ import matplotlib.pyplot as plt
 
 # check cli
 if len(sys.argv)<2:
-   errMsg = ('Not enough input arguments!\n'
-               +'\tfirst argument must be dataPath!')
-   raise RuntimeError(errMsg)
+  errMsg = ('Not enough input arguments!\n'
+               +'\t1. argument must be dataPath!\n'
+               +'\toptional argument is name of the inputfile\n'
+               +'\te.g. {} path --config=inputfile.py'.format(sys.argv[0])
+            )
+  raise RuntimeError(errMsg)
 
 # parsing the datapath from terminal
 dataPath = str(sys.argv[1]) # path to data
@@ -29,14 +32,20 @@ inputFilePath = dataPath # assumes inputfile is located in datapath
 
 output_path = '{}/Visualization'.format(dataPath)
 
+DEFLPROPS = False
+if 'defl' in output_path:
+  DEFLPROPS = True
+
+
 # bool to read all existing HDF5 files
 # this make only sense if we restarted the simulation form the last checkpoint!!
 RESTARTEDSIMULATION = False
 
-try:
-  inputfileName = str(sys.argv[2]) # optional name of the inputfile
-except: 
-  inputfileName = 'SEC_Plenum_Arrhenius.py'
+# name of the inputfile is optional
+optional = [ int(el.rsplit('=',1)[-1]) for el in sys.argv if '--config=' in el ]
+if not optional:
+    optional = ['inputfile.py'] # default value 
+inputfileName = optional[0]
 
 import_file_as_module(os.path.join(inputFilePath, inputfileName), 'inputfile')
 from inputfile import t_ref, T_ref, ControlOptions
@@ -50,11 +59,7 @@ except:
 
 os.environ['HDF5_USE_FILE_LOCKING'] = 'False'
 
-#plt.style.use('seaborn')
 tex_fonts = {
-    # Use LaTeX to write all text
-    "text.usetex": True,
-    "font.family": "serif",
     # Use 10pt font in plots, to match 10pt font in document
     "axes.labelsize": 9,
     "axes.titlesize": 9,
@@ -66,11 +71,15 @@ tex_fonts = {
     "ytick.labelsize": 7
 }
 
+usetex = matplotlib.checkdep_usetex(True)
+if usetex:
+  # Use LaTeX to write all text
+  tex_fonts.update({"text.usetex": True, 
+                  "font.family": "serif"}) 
 plt.rcParams.update(tex_fonts)
 plt.rcParams.update({'axes.grid' : False})
 
 os.makedirs(output_path, exist_ok=True)
-
 
 for tube_id in range(n_tubes):
   print("[Tube{}] Plotting Tube data".format(tube_id))
@@ -164,36 +173,39 @@ for tube_id in range(n_tubes):
       'aspect': 'auto'
     }
     if title == 'Passive Scalars [-]':
-      props = {
-        'origin': 'lower',
-        'extent': (x0, xEnd, t0, tEnd),
+      props.update({
+        # 'origin': 'lower',
+        # 'extent': (x0, xEnd, t0, tEnd),
         'levels': np.linspace(np.min(X), np.max(X), 20),
         'vmax': None,
         'vmin': None,
         'cmap': 'twilight'
-      }
+      })
     if title == 'Fuel Massfraction [-]':
       props['vmax'] = None
       props['vmin'] = None
       props['cmap'] = 'gray_r'
-    # if  title == 'Temperature':
-      # props['vmax'] = 3.0
+    if  title == 'Temperature [K]':
+      props['vmax'] = 12. * T_ref
     if title == 'Pressure [bar]':
-      props = {
-      'origin': 'lower',
-      'interpolation': 'none',
-      'aspect': 'auto',
-      'extent': (x0, xEnd, t0, tEnd),
+      props.update({
+      # 'origin': 'lower',
+      # 'interpolation': 'none',
+      # 'aspect': 'auto',
+      # 'extent': (x0, xEnd, t0, tEnd),
       'vmin': 0.0,
       'vmax': 30.0,
       'cmap': 'jet'
-      }
+      })
+      if DEFLPROPS:
+        props['vmax'] = 6.0
     return props
   import itertools
   ims = [a.imshow(data, **props(title)) for (__, (a, data, title)) in itertools.takewhile(lambda x: x[0] < 4,  enumerate(zip(ax, datas, titles)))]
   # ims = [a.plot(data[-1,:]) for (__, (a, data, title)) in itertools.takewhile(lambda x: x[0] < 4,  enumerate(zip(ax, datas, titles)))]
   if 'PassiveScalars' in datas_dict:
     ims.append(ax[4].contourf(datas[4], **props(titles[4])))
+    # TODO adjust ylim, xlim here...
   for a, title in zip(ax, titles):
     a.set(xlabel='x', title=title)
 

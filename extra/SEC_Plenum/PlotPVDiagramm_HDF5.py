@@ -9,19 +9,23 @@ sys.path.append(FVS_path+'/extra/')
 import amrex.h5_io as io
 import amrex.other as other
 import amrex.h5_data_processing as dataManip
+import amrex.pvDiagrammHelper as pvHelper
 
 import numpy as np
 import matplotlib
 matplotlib.use('Agg') 
 import matplotlib.pyplot as plt
-import h5py
 
 os.environ['HDF5_USE_FILE_LOCKING'] = 'False'
 
 # check cli
-if len(sys.argv)<2:
+if len(sys.argv)<3:
    errMsg = ('Not enough input arguments!\n'
-               +'\tfirst argument must be dataPath!')
+               +'\t1. argument must be dataPath!\n'
+               +'\t2. argument must be list of scalar numbers without white spaces\n'
+               +'\toptional argument is name of the inputfile\n'
+               +'\te.g. {} path [680, 690, ...] --config=inputfile.py'.format(sys.argv[0])
+            )
    raise RuntimeError(errMsg)
 
 # parsing the datapath from terminal
@@ -30,13 +34,14 @@ if not os.path.exists(dataPath):
    raise FileNotFoundError('given Path: {} does not exist!'.format(dataPath))
 inputFilePath = dataPath # assumes inputfile is located in datapath
 
-try:
-  inputfileName = str(sys.argv[2]) # optional name of the inputfile
-except: 
-  inputfileName = 'SEC_Plenum_Arrhenius.py'
+# name of the inputfile is optional
+optional = [ int(el.rsplit('=',1)[-1]) for el in sys.argv if '--config=' in el ]
+if not optional:
+    optional = ['inputfile.py'] # default value 
+inputfileName = optional[0]
 
 other.import_file_as_module(os.path.join(inputFilePath, inputfileName), 'inputfile')
-from inputfile import Area, tube_n_cells, p_ref, rho_ref, Output, u_ref, t_ref, L_ref, R_ref, R, gamma
+from inputfile import Area, tube_n_cells, p_ref, rho_ref, Output, u_ref, t_ref, L_ref, R_ref, R, gamma, ArrheniusKinetics
 from inputfile import D as diameter_tube
 
 try:
@@ -49,9 +54,6 @@ if not n_tubes==1:
   raise NotImplementedError('MultiTube Case not implemented yet!!')
 
 tex_fonts = {
-    # Use LaTeX to write all text
-    "text.usetex": True,
-    "font.family": "serif",
     # Use 10pt font in plots, to match 10pt font in document
     "axes.labelsize": 9,
     "axes.titlesize": 9,
@@ -63,458 +65,394 @@ tex_fonts = {
     "ytick.labelsize": 7
 }
 
+usetex = matplotlib.checkdep_usetex(True)
+if usetex:
+  # Use LaTeX to write all text
+  tex_fonts.update({"text.usetex": True, 
+                  "font.family": "serif"}) 
 plt.rcParams.update(tex_fonts)
 plt.rcParams.update({'axes.grid' : True})
+plt.rcParams.update({'axes.axisbelow' : True})
 
 #--------------------------------------------------------------------------
-# dicts and function
-PerfectGasConstants = {
-  'Rspec': R, # [-]
-  'gamma': gamma, # [-]
-}
+print('initiate Attribute class')
+pv_class = pvHelper.pv_diagramm_class()
+pv_class.setAttribute('specGasConstant', R) # [-]
+pv_class.setAttribute('gamma', gamma) # [-]
+# set reference values right!
+pv_class.setAttribute('ref_time', t_ref) # [s]
+pv_class.setAttribute('ref_length', L_ref) # [m]
+pv_class.setAttribute('ref_pressure', p_ref) # [Pa]
+pv_class.setAttribute('ref_density' , rho_ref) # [kg/m^3]
+pv_class.setAttribute('ref_temperature', T_ref) # [K]
+pv_class.setAttribute('ref_velocity', u_ref) # [m/s]
+pv_class.setAttribute('ref_GasConstant', R_ref) # [J/(kg*K)]
 
-ParameterNonDim = {
-  'time' : t_ref, # [s]
-  'length': L_ref, # [m]
-  'pressure' : p_ref, # [Pa]
-  'density' : rho_ref, # [kg/m^3]
-  'temperature': T_ref, # [K]
-  'velocity': u_ref, # [m/s]
-  'SpecGasConstant': R_ref, # [J/(kg*K)]
-}
-
-def getSpecGasConstant(Dimless=True):
-  Rspec = PerfectGasConstants['Rspec']
-  if not Dimless:
-    Rspec *= ParameterNonDim['SpecGasConstant']
-  return Rspec
-
-def getHeatCapacityConstantVolume(Dimless=True):
-  gammaMinusOne = PerfectGasConstants['gamma']-1.
-  Rspec = getSpecGasConstant(Dimless)
-  return Rspec/gammaMinusOne
-
-def getHeatCapacityConstantPressure(Dimless=True):
-  gamma = PerfectGasConstants['gamma']
-  gammaMinusOne = gamma-1.
-  Rspec = getSpecGasConstant(Dimless)
-  return Rspec*gamma/gammaMinusOne
-
-def findNearest1D(array, value):
-  array = np.asarray(array)
-  sortedIndices = np.argsort(np.abs(array - value))
-  
-  idPos = []
-  idNeg = []
-  # greater than value
-  for id in sortedIndices:
-    if array[id]>=value:
-      idPos.append(id)
-      break
-  # less than value
-  for id in sortedIndices:
-    if array[id]<value:
-      idNeg.append(id)
-      break
-  if (not idPos):
-    raise AssertionError(f"no value is greater than {value}!")
-  elif (not idNeg):
-    raise AssertionError(f"no value is less than {value}!")
-  
-  # get rid of list type
-  idPos, = idPos
-  idNeg, = idNeg
-
-  return idNeg, idPos
-  # return (np.abs(array - value)).argmin()
-
-def findNearest2D(array, value):
-  absArray = np.abs(array-value)
-  index = np.where( absArray == np.amin(absArray) )
-  return index
-
-def computeEntropy(T, rho, s0=0., Dimless=True):
-  cv = getHeatCapacityConstantVolume(Dimless)
-  Rspec = getSpecGasConstant(Dimless)
-  s = np.zeros_like(rho)
-  s[0] = s0 # set first element
-  sdiff = (cv * np.log(T[1:]/T[:-1]) 
-            + Rspec * np.log(rho[:-1]/rho[1:])
-          )
-  for i in range(s.shape[0]-1):
-    s[i+1] = s[i]+sdiff[i]
-  return s
-
-def computeEnthalpy(T, Dimless=True):
-  # H/m = h = cp * T
-  cp = getHeatCapacityConstantPressure(Dimless)
-  return cp*T
-
-def computeTemperature(p, rho, Dimless=True):
-  Rspec = getSpecGasConstant(Dimless)
-  return p/(rho*Rspec)
-
-def computeDensity(p, T, Dimless=True):
-  Rspec = getSpecGasConstant(Dimless)
-  return p/(T*Rspec)
-
-def computePressure(rho, T, Dimless=True):
-  Rspec = getSpecGasConstant(Dimless)
-  return (rho*T*Rspec)
-
-def checkMin(value, array):
-  amin = np.amin(array)
-  if (value < amin):
-    print('scalar value: {} is lower than min scalar value: {}'.format(value, amin))
-    return False
-  else:
-    return True
-
-def checkMax(value, array):
-  amax = np.amax(array)
-  if (value > amax):
-    print('scalar value: {} is greater than max scalar value: {}'.format(value, amax))
-    return False
-  else:
-    return True
-
-
-def valueCheck(value, array):
-    MIN = checkMin(value, array)
-    MAX = checkMax(value, array)
-    if not MIN:
-      return False
-    if not MAX:
-      return False
-    return True
-
-def interpolate1D(value, x, y, ids):
-      data = np.interp( value, 
-                [x[ids[0]], x[ids[1]]], 
-                [y[ids[0]], y[ids[1]]] 
-               )
-      return data
-
-def simplePlot(strX, strY, path, test_scalar, markerstyle='x', tube_id=0):
-    fig, ax = plt.subplots(nrows=1, ncols=1)
-    ax.plot(valueDict[strX]['data'], valueDict[strY]['data'], 
-              '-', marker=markerstyle)
-    ax.set(
-      xlabel=f"{valueDict[strX]['latexLabel']} {valueDict[strX]['dim']}", 
-      ylabel=f"{valueDict[strY]['latexLabel']} {valueDict[strY]['dim']}"
-      )
-    fig.savefig('{}/{}-{}{}Diagramm_tubeID{}.png'.format(path, str(int(test_scalar)).zfill(5), valueDict[strY]['symbol'], valueDict[strX]['symbol'], tube_id), bbox_inches='tight')
-
-def quiverPlot(strX, strY, path, test_scalar, location=[], tube_id=0):
-  
-  color = ['m', 'k', 'g']
-  kwargs = {
-    'scale_units' : 'xy', 
-    'angles' : 'xy', 
-    'scale' : 1
-  }
-  if location:
-    kwargs['color'] = [color[i] for i in location]
-  
-  fig, ax = plt.subplots(nrows=1, ncols=1)
-  x = valueDict[strX]['data']
-  y = valueDict[strY]['data']
-  
-  ax.quiver(x[:-1], y[:-1], x[1:]-x[:-1], y[1:]-y[:-1], 
-                **kwargs)
-  # ax.plot(x[0], y[0], 'rx') #start
-  # ax.plot(x[-1], y[-1], 'gx') #end
-
-  if 'pressure' in valueDict[strY]['label']:
-    isoVol = np.linspace(x.min(), x.max(), 101 )
-    const = 50.0 * 0.2 # p * v = const
-    ax.plot(isoVol, const/isoVol, 'r--', label='isotherm')
-    const = 50. * 0.2**gamma # p * v^gamma = const
-    ax.plot(isoVol, const/(isoVol**gamma), 'b--', label='isentrop') 
-    plt.legend(loc='best')
-
-  ax.set(
-      xlabel=f"{valueDict[strX]['latexLabel']} {valueDict[strX]['dim']}", 
-      ylabel=f"{valueDict[strY]['latexLabel']} {valueDict[strY]['dim']}"
-      )
-  fig.savefig('{}/{}-quiver_{}{}Diagramm_tubeID{}.png'.format(path, str(int(test_scalar)).zfill(5), valueDict[strY]['symbol'], valueDict[strX]['symbol'], tube_id), bbox_inches='tight', dpi=600)
-
-def getControlStateData(timepoint, csData, csTimes):
-  return csData[csTimes>=timepoint, :][0]
+print('Attribute class contains following members:')
+print(pv_class.prettyprint())
+print()
 
 #-------------------------------------------------
 
-plenum = "{}/Plenum.h5".format(dataPath)
 outPath = dataPath
 output_path = '{}/Visualization/PVDiagramm/'.format(outPath)
 
 os.makedirs(output_path, exist_ok=True)
 
 #---------------------------
-test_scalar = 680.0 # initial passive scalar value
-tplotmin = 300. #200.0
-tplotmax = 400.0
+# initial passive scalar value
+
+temp = sys.argv[2].strip('[]()')
+test_scalar_list = [pvHelper.convertStringToFloat(el) for el in temp.split(',')] # e.g.[680,690]
+print('Following passive scalar numbers could be parsed: {}'.format(test_scalar_list))
+
+tplotmin = 200. #200.0
+tplotmax = 500.
 Dimless = True
 # bool to read all existing HDF5 files
 # this make only sense if we restarted the simulation form the last checkpoint!!
 RESTARTEDSIMULATION = False
 INCLUDECONTROLSTATE = True
+INCLUDEADIABATCOMPRESSOR = True
 INCLUDETUBE = True
-INCLUDEPLENUM = True
+INCLUDETURBINEPLENUM = True
+INCLUDEADIABATTURBINE = True
+INCLUDEAMBIENT = True
+DRAWCYCLE = True
+nInterpPoints = 100
 
 locDict = {
   'compressor' : 0, # control state
   'tube' : 1, # burning tube
-  'turbine' : 2 # turbine plenum
+  'turbinePlenum' : 2, # turbinePlenum
+  'turbine' : 3,
+  'ambient' : 4
 }
+
+# catch error if not AMbient and adiabat stuff
+if INCLUDEAMBIENT:
+  if INCLUDEADIABATCOMPRESSOR and not INCLUDECONTROLSTATE:
+    raise ValueError('Controlstate must be included for visualizing adiabat compressor')
+  if INCLUDEADIABATTURBINE and not INCLUDECONTROLSTATE:
+    raise ValueError('Controlstate must be included for visualizing adiabat turbine')
 #-------------------------------------------
-# load ControlState data
 
-if INCLUDECONTROLSTATE:
-  filename_basic = "{}/ControlState.h5".format(dataPath)
-  print("Read in data from {}".format(filename_basic))
+for test_scalar in test_scalar_list:
+  print('\nparsing data for passive scalar number {}'.format(test_scalar))
+  ## list to collect all the data
+  ## [0] --> pressure
+  ## [1] --> density (later specific volume)
+  passive_scalar = [[],[]]
+  time = []
+  indices = []
+  location = []
+  tube_passive_scalar_times = {'start':None, 'stop':None}
 
-  if RESTARTEDSIMULATION:
-    csData, csTimes, csDict = io.h5_load_restartedTimeseries(filename_basic)
-  else:
-    csData, csTimes, csDict = io.h5_load_timeseries(filename_basic)
+  #-------------------------------------------
+  # ambient data
+  if INCLUDEAMBIENT:
+    passive_scalar[0].append(pv_class.ambientPressure)
+    passive_scalar[1].append(pv_class.ambientDensity)
+    time.append(0.)
+    location.append(locDict['ambient'])
 
-#-------------------------------------------
-# ambientPressure = 1. # 1 bar
-# ambientTemperature = 273.15 / T_ref # 0°C
-# ambientDensity = computeDensity(ambientPressure, ambientTemperature)
-# passive_scalar = [[ambientPressure],[ambientDensity]]
-# time = [tplotmin]
+  #-------------------------------------------
+  # load ControlState data
+  if INCLUDECONTROLSTATE:
+    filename_basic = "{}/ControlState.h5".format(dataPath)
+    print("Read in data from {}".format(filename_basic))
 
+    if RESTARTEDSIMULATION:
+      csData, csTimes, csDict = io.h5_load_restartedTimeseries(filename_basic)
+    else:
+      csData, csTimes, csDict = io.h5_load_timeseries(filename_basic)
+  #-------------------------------------------
+  # load Tube0 data
+  if INCLUDETUBE:
+    tube_id = 0
+    filename_basic = '{}/Tube{}.h5'.format(dataPath, tube_id)
+    extent_1d = io.h5_load_get_extent_1D(filename_basic)
 
-## list to collect all the data
-## [0] --> pressure
-## [1] --> density (later specific volume)
-passive_scalar = [[],[]]
-time = []
-indices = []
-location = []
-
-if INCLUDETUBE:
-  tube_id = 0
-  filename_basic = '{}/Tube{}.h5'.format(dataPath, tube_id)
-  # datas, times, datas_dict = io.h5_load_timeseries(filename_basic)
-  extent_1d = io.h5_load_get_extent_1D(filename_basic)
-
-  if RESTARTEDSIMULATION:
-    datas, times, datas_dict = io.h5_load_restartedTimeseries(filename_basic)
-  else:
-    print("[Tube{}] Read in data from {}".format(tube_id, filename_basic))
-    datas, times, datas_dict = io.h5_load_timeseries(filename_basic)
-
-
-  datas = np.squeeze(datas) # remove last axis
-  print("[Tube{}] data shape from tube is {} = (NTimePoints, NVariables, NCells)".format(tube_id, datas.shape))
-  # print(datas_dict)
-
-  # optional slicing in time-dimension
-  t_index_array = (times>=tplotmin) & (times<=tplotmax)
-
-  # check if index array is empty
-  if not np.any(t_index_array):
-    raise IndexError('time index array is empty!')
-
-  rho_data = datas[t_index_array, datas_dict['Density'], :]
-  p_data = datas[t_index_array, datas_dict['Pressure'], :]
-
-  if not 'PassiveScalars' in datas_dict:
-    raise KeyError('No PassiveScalars data could be found!')
-    
-  rhoX_data = datas[t_index_array, datas_dict['PassiveScalars'], :]
-  scalarX_data = rhoX_data / rho_data
-  indexed_time = times[t_index_array]
-
-  if not valueCheck(test_scalar, scalarX_data):
-    raise ValueError("value Check failed!")
+    if RESTARTEDSIMULATION:
+      datas, times, datas_dict = io.h5_load_restartedTimeseries(filename_basic)
+    else:
+      print("[Tube{}] Read in data from {}".format(tube_id, filename_basic))
+      datas, times, datas_dict = io.h5_load_timeseries(filename_basic)
 
 
-  print(scalarX_data.shape)
-  print(np.min(scalarX_data), np.max(scalarX_data))
+    datas = np.squeeze(datas) # remove last axis
+    print("[Tube{}] data shape from tube is {} = (NTimePoints, NVariables, NCells)".format(tube_id, datas.shape))
+    # print(datas_dict)
 
-  counter = 0
-  for step in range(scalarX_data.shape[0]):
-    # print("Search for {}".format(test_scalar))
-    current_time = indexed_time[step]
-    if not valueCheck(test_scalar, scalarX_data[step,:]):
-      continue
-    
-    if (counter==0) and INCLUDECONTROLSTATE:
-      csdata = getControlStateData(current_time, csData, csTimes)
-      # 'compressor_pressure', compressor_temperature'
-      passive_scalar[0].append(csdata[csDict['compressor_pressure']])
-      csDensity = computeDensity(
-            csdata[csDict['compressor_pressure']],
-            csdata[csDict['compressor_temperature']] )
-      passive_scalar[1].append(csDensity)
-      time.append(current_time)
-      location.append(locDict['compressor'])
-      del csDensity, csdata
+    # optional slicing in time-dimension
+    t_index_array = (times>=tplotmin) & (times<=tplotmax)
+
+    # check if index array is empty
+    if not np.any(t_index_array):
+      raise IndexError('time index array is empty!')
+
+    rho_data = datas[t_index_array, datas_dict['Density'], :]
+    p_data = datas[t_index_array, datas_dict['Pressure'], :]
+
+    if not 'PassiveScalars' in datas_dict:
+      raise KeyError('No PassiveScalars data could be found!')
       
-    idNeg, idPos = findNearest1D(scalarX_data[step,:], test_scalar)
+    rhoX_data = datas[t_index_array, datas_dict['PassiveScalars'], :]
+    scalarX_data = rhoX_data / rho_data
+    indexed_time = times[t_index_array]
+
+    if not pvHelper.valueCheck(test_scalar, scalarX_data):
+      print('scalar value {} was not in [{}, {}]'.format(test_scalar, np.min(scalarX_data), np.max(scalarX_data)))
+      raise ValueError("value Check failed!")
+
+    counter = 0
+    FIRSTTIME = True
+    for step in range(scalarX_data.shape[0]):
+      # print("Search for {}".format(test_scalar))
+      current_time = indexed_time[step]
+      if not pvHelper.valueCheck(test_scalar, scalarX_data[step,:]):
+        continue
+      else:
+        if FIRSTTIME:
+          print("scalar has entered the tube at current time = {}".format(current_time))
+          tube_passive_scalar_times['start'] = current_time
+          FIRSTTIME = False
+
+      if (counter==0) and INCLUDECONTROLSTATE:
+        # here compressor time
+        # TODO compute here adiabat compression from ambient conditions to csData 
+        csdataAtCurentTimePoint = pvHelper.getRelevantControlStateData(current_time, csData, csTimes)
+        # 'compressor_pressure', compressor_temperature'
+        compressorPressure = csdataAtCurentTimePoint[csDict['compressor_pressure']]
+        compressorTemperature = csdataAtCurentTimePoint[csDict['compressor_temperature']]
+        compressorDensity = pv_class.computeDensity(
+              compressorPressure, compressorTemperature )
+        
+        #---------------------------------------------
+        if INCLUDEADIABATCOMPRESSOR:
+          # here compressor time
+          # adiabat expansion from compressorPressure to ambientPressure
+          compressorPressureArray = np.linspace(pv_class.ambientPressure, compressorPressure, nInterpPoints)
+          compressorSpecVolumeArray= pvHelper.computeIsentropCurveIsoVol(pv_class.ambientPressure, 1./pv_class.ambientDensity, pv_class.gamma, compressorPressureArray)
+          
+          # # adiabat expansion from compressorDensity to ambientDensity
+          # compressorSpecVolumeArray = np.linspace(pv_class.ambientDensity, compressorDensity, nInterpPoints)**(-1)
+          # compressorPressureArray= pvHelper.computeIsentropCurvePressure(compressorPressure, 1./compressorDensity, pv_class.gamma, compressorSpecVolumeArray)
+          
+          for i in range(nInterpPoints):
+            passive_scalar[0].append(compressorPressureArray[i])
+            passive_scalar[1].append(compressorSpecVolumeArray[i]**(-1))
+            time.append(current_time)
+            location.append(locDict['compressor'])
+        else:
+          passive_scalar[0].append(compressorPressure)
+          passive_scalar[1].append(compressorDensity)
+          time.append(current_time)
+          location.append(locDict['compressor'])
+      
+      idNeg, idPos = pvHelper.findNearest1D(scalarX_data[step,:], test_scalar)
+      
+      passive_scalar[0].append(pvHelper.interpolate1D(test_scalar, scalarX_data[step,:], p_data[step,:], (idNeg, idPos)))
+      passive_scalar[1].append(pvHelper.interpolate1D(test_scalar, scalarX_data[step,:], rho_data[step,:], (idNeg, idPos)))
+      time.append(current_time)
+      indices.append(np.mean((idPos, idNeg)))
+      location.append(locDict['tube'])
+      counter += 1
+
+      if (idPos==scalarX_data.shape[1]-1) or (idNeg==scalarX_data.shape[1]-1):
+        print("scalar has left the tube at current time = {}".format(current_time))
+        tube_passive_scalar_times['stop'] = current_time
+        break
+
+  #------------------------------
+  # load Plenum data
+  if INCLUDETURBINEPLENUM:
+    plenum = "{}/Plenum.h5".format(dataPath)
+    # Get times and nSteps from plenum
+    print('Read times from {}'.format(plenum))
+    plenum_times = io.h5_load_timepoints(plenum)
+    nSteps = plenum_times.shape[0]
+    print('Found {} timepoints/steps'.format(nSteps))
+    t_bool_array = (plenum_times>=time[-1]) & (plenum_times<=tplotmax)
+    t_index_array = np.nonzero(t_bool_array)[0] # returns tuple: (array([10 11 ...]), )
+
+    # check if index array is empty
+    if not np.any(t_index_array):
+      raise IndexError('time index array is empty!')
+
+    # for i in other.progressBar(t_index_array):
+    for i in t_index_array:
+      plenum_variables = ["Pressure", "Density", "PassiveScalars", 'vfrac']
+      
+      plenum_data, current_time, plenum_extent, plenum_dict = io.h5_load_spec_timepoint_variable(plenum, i, plenum_variables)
+      
+      volume_fraction = plenum_data[plenum_dict['vfrac']]
+      rhoX = dataManip.maskPlenumCutCells(plenum_data[plenum_dict['PassiveScalars']], volume_fraction)
+      rho = dataManip.maskPlenumCutCells(plenum_data[plenum_dict['Density']], volume_fraction)
+      scalarX_data = rhoX / rho
+
+      if not pvHelper.valueCheck(test_scalar, scalarX_data):
+        continue
+      
+      pressure = dataManip.maskPlenumCutCells(plenum_data[plenum_dict['Pressure']], volume_fraction)
+      
+      # print(f'current time is = {current_time}')
+      index = pvHelper.findNearest2D(scalarX_data, test_scalar)
+
+      # possible interpolation...
+      passive_scalar[0].append(*pressure[index])
+      passive_scalar[1].append(*rho[index])
+      # find out why pressure[index] is a list??
+
+      # print("current time = {}".format(current_time))
+      # print(checkMax(test_scalar, scalarX_data))
+      time.append(current_time)
+      location.append(locDict['turbinePlenum'])
+      # indices.append(index) # index is 2d now!!
+
+      if not pvHelper.checkMax(test_scalar, scalarX_data):
+        print("scalar has left the plenum!")
+        print("current time = {}".format(current_time))
+        break
+      del pressure, rho
+
+  if INCLUDEADIABATTURBINE:
+    # here turbine time
+    # compute here adiabat expansion from csData to ambient conditions
+    csdataAtCurentTimePoint = pvHelper.getRelevantControlStateData(current_time, csData, csTimes)
+    # 'turbine_pressure', turbine_temperature'
+    turbinePlenumPressure = csdataAtCurentTimePoint[csDict['turbine_pressure']]
+    turbinePlenumTemperature = csdataAtCurentTimePoint[csDict['turbine_temperature']]
+    turbinePlenumDensity = pv_class.computeDensity(
+          turbinePlenumPressure, turbinePlenumTemperature )
     
-    passive_scalar[0].append(interpolate1D(test_scalar, scalarX_data[step,:], p_data[step,:], (idNeg, idPos)))
-    passive_scalar[1].append(interpolate1D(test_scalar, scalarX_data[step,:], rho_data[step,:], (idNeg, idPos)))
-    time.append(current_time)
-    indices.append(np.mean((idPos, idNeg)))
-    location.append(locDict['tube'])
-    counter += 1
-
-    if (idPos==scalarX_data.shape[1]-1) or (idNeg==scalarX_data.shape[1]-1):
-      print("scalar has left the tube!")
-      print("current time = {}".format(current_time))
-      break
-
-if INCLUDEPLENUM:
-  # Get times and nSteps from plenum
-  plenum_times = io.h5_load_timepoints(plenum)
-  nSteps = plenum_times.shape[0]
-  t_bool_array = (plenum_times>=time[-1]) & (plenum_times<=tplotmax)
-  t_index_array = np.nonzero(t_bool_array)[0] # returns tuple: (array([10 11 ...]), )
-
-  # check if index array is empty
-  if not np.any(t_index_array):
-    raise IndexError('time index array is empty!')
-
-  # for i in other.progressBar(t_index_array):
-  for i in t_index_array:
-    plenum_variables = ["Pressure", "Density", "PassiveScalars", 'vfrac']
+    # adiabat expansion from turbinePlenumPressure to ambientPressure
+    turbinePlenumPressureArray = np.linspace(turbinePlenumPressure, pv_class.ambientPressure, nInterpPoints)
+    turbinePlenumSpecVolumeArray= pvHelper.computeIsentropCurveIsoVol(turbinePlenumPressure, 1./turbinePlenumDensity, pv_class.gamma, turbinePlenumPressureArray)
     
-    plenum_data, current_time, plenum_extent, plenum_dict = io.h5_load_spec_timepoint_variable(plenum, i, plenum_variables)
+    # # adiabat expansion from turbinePlenumDensity to ambientDensity
+    # turbinePlenumSpecVolumeArray = np.linspace(turbinePlenumDensity, pv_class.ambientDensity, nInterpPoints)**(-1)
+    # turbinePlenumPressureArray= pvHelper.computeIsentropCurvePressure(turbinePlenumPressure, 1./turbinePlenumDensity, pv_class.gamma, turbinePlenumSpecVolumeArray)
     
-    volume_fraction = plenum_data[plenum_dict['vfrac']]
-    rhoX = dataManip.maskPlenumCutCells(plenum_data[plenum_dict['PassiveScalars']], volume_fraction)
-    rho = dataManip.maskPlenumCutCells(plenum_data[plenum_dict['Density']], volume_fraction)
-    scalarX_data = rhoX / rho
+    for i in range(nInterpPoints):
+      passive_scalar[0].append(turbinePlenumPressureArray[i])
+      passive_scalar[1].append(turbinePlenumSpecVolumeArray[i]**(-1))
+      time.append(current_time)
+      location.append(locDict['turbine'])
 
-    if not valueCheck(test_scalar, scalarX_data):
-      continue
+  #-------------------------------------------
+  if INCLUDEAMBIENT:
+    # compute here isobar cooldown
+    lastPressure = passive_scalar[0][-1]
+    lastDensity = passive_scalar[1][-1]
+    lastTemperature = pv_class.computeTemperature(lastPressure, lastDensity)
     
-    pressure = dataManip.maskPlenumCutCells(plenum_data[plenum_dict['Pressure']], volume_fraction)
-    
-    # print(f'current time is = {current_time}')
-    index = findNearest2D(scalarX_data, test_scalar)
+    temperatureArray = np.linspace(lastTemperature, pv_class.ambientTemperature, nInterpPoints)
+    specVolArray= pvHelper.computeIsobarCurveSpecVol(lastTemperature, lastDensity**(-1), temperatureArray)
+    densityArray = specVolArray**(-1)
+    pressureArray = pv_class.computePressure(densityArray, temperatureArray)
 
-    # possible interpolation...
-    passive_scalar[0].append(*pressure[index])
-    passive_scalar[1].append(*rho[index])
-    # find out why pressure[index] is a list??
+    for i in range(nInterpPoints):
+      passive_scalar[0].append(pressureArray[i])
+      passive_scalar[1].append(densityArray[i])
+      time.append(current_time)
+      location.append(locDict['ambient'])
+    # passive_scalar[0].append(pv_class.ambientPressure)
+    # passive_scalar[1].append(pv_class.ambientDensity)
+    # time.append(current_time)
+    # location.append(locDict['ambient'])
+  ##-------------------------------------------------------
+  ## arange data
 
-    # print("current time = {}".format(current_time))
-    # print(checkMax(test_scalar, scalarX_data))
-    time.append(current_time)
-    location.append(locDict['turbine'])
-    # indices.append(index) # index is 2d now!!
-
-    if not checkMax(test_scalar, scalarX_data):
-      print("scalar has left the plenum!")
-      print("current time = {}".format(current_time))
-      break
-    del pressure, rho
-
-
-##-------------------------------------------------------
-## arange data
-
-## add ambient data
-# passive_scalar[0].append(ambientPressure)
-# passive_scalar[1].append(ambientDensity)
-# time.append(current_time)
-
-passive_scalar = np.asarray_chkfinite(passive_scalar)
-
-time = np.array(time)
-pressure = passive_scalar[0]
-rho = passive_scalar[1]
-T = computeTemperature(pressure, rho)
-s = computeEntropy(T, rho, Dimless=Dimless)
-h = computeEnthalpy(T, Dimless)
-if not Dimless:
-  rho *= ParameterNonDim['density']
-  specVol = np.power(rho, -1)
-  T *= ParameterNonDim['temperature']
-  time *= ParameterNonDim['time']
-else:
-  specVol = np.power(rho, -1)
+  if DRAWCYCLE:
+    # append first data point, so we draw closed cycle
+    passive_scalar[0].append(passive_scalar[0][0])
+    passive_scalar[1].append(passive_scalar[1][0])
+    location.append(location[0])
   
-valueDict = {
-  'time' : {
-    'data' : time,
-    'label': 'time',
-    'symbol': 't',
-    'latexLabel': r'$t$',
-    'dim': '[s]'
-  },
-  # 'id' : {
-  #   'data' : indices,
-  #   'label': 'id',
-  #   'symbol': 'id',
-  #   'dim': ''
-  # },
-  'pressure' : {
-    'data' : pressure,
-    'label': 'pressure',
-    'symbol': 'p',
-    'latexLabel': r'$p$',
-    'dim': '[bar]'
-  },
-  'density' : {
-    'data' : rho,
-    'label': 'density',
-    'symbol': 'rho',
-    'latexLabel': r'$\rho$',
-    'dim': '[kg/m3]'
-  },
-  'temperature' : {
-    'data' : T,
-    'label': 'temperature',
-    'symbol': 'T',
-    'latexLabel': r'$T$',
-    'dim': '[K]'
-  },
-  'specificVolume' : {
-    'data' : specVol,
-    'label': 'specific Volume',
-    'symbol': 'v',
-    'latexLabel': r'$v$',
-    'dim': '[m3/kg]'
-  },
-  'specificEntropy' : {
-    'data' : s,
-    'label': 'specific Entropy difference',
-    'symbol': 's',
-    'latexLabel': r'$\Delta s$',
-    'dim': '[J/(kg*K)]'
-  },
-  'specificEnthalpy' : {
-    'data' : h,
-    'label': 'specific Enthalpy',
-    'symbol': 'h',
-    'latexLabel': r'$h$',
-    'dim': '[J/kg]'
-  },
-}
+  location = location[1:] # because quiverplot draw only n-1 arrows
 
-if Dimless:
-  for key in valueDict.keys():
-    if 'id' in key:
-      continue
-    valueDict[key]['dim'] = '[-]'
-
-# # plot all variables over time
-# for string in valueDict.keys():
-#   if 'time' in string:
-#     continue
-#   simplePlot('time', string, output_path, test_scalar)
-
-# simplePlot('specificVolume', 'pressure', output_path, test_scalar)
-# simplePlot('specificEntropy', 'temperature', output_path, test_scalar)
-# simplePlot('specificEntropy', 'specificEnthalpy', output_path, test_scalar)
+  passive_scalar = np.asarray_chkfinite(passive_scalar)
+  time = np.array(time)
+  pressure = passive_scalar[0]
+  rho = passive_scalar[1]
+  specvol = rho**(-1)
+  T = pv_class.computeTemperature(pressure, rho, Dimless)
+  s = pv_class.computeEntropy(T, rho, Dimless)
+  h = pv_class.computeEnthalpy(T, Dimless)
   
-quiverPlot('specificVolume', 'pressure', output_path, test_scalar, location)
-quiverPlot('specificEntropy', 'temperature', output_path, test_scalar, location)
-quiverPlot('specificEntropy', 'specificEnthalpy', output_path, test_scalar, location)
+  # # compute Integral over pv values
+  # work = np.sum(0.5*np.diff(rho**(-1))*(pressure[1:]+pressure[:-1]))
+  # efficiency = 1.-work/heat
+  
+  
+  # following thermodynamic books we compute the thermodynamic efficiency
+  # from the T,s diagram. Where the input heiat 
+  heat = np.sum( 0.5*np.diff(s)*(T[1:]+T[:-1]) ) # enclosed area between the curves in T-s-diagram
+  
+  # compute area under the isobar expansion in T-s-diagram
+  # this corresponds to the removed heat from the process q_ab
+  loc = np.array(location)
+  heat_loss = abs(np.sum( 0.5*np.diff(s)[loc==locDict['ambient']]*(T[1:][loc==locDict['ambient']]+T[:-1][loc==locDict['ambient']]) ))
+  heat_in = heat + heat_loss
+  efficiency = 1.-heat_loss/heat_in
+  
+  # print(f'work={work}, heat={heat}, --> efficiency={efficiency}')
+  print(f'heat={heat}, heat_loss={heat_loss}, --> efficiency={efficiency}')
+
+  if not Dimless:
+    rho *= pv_class.ref_density
+    specVol = np.power(rho, -1)
+    time *= pv_class.ref_time
+  else:
+    specVol = np.power(rho, -1)
+    
+  from amrex.pvDiagrammHelper import valueDict
+  valueDict['time']['data']=time
+  valueDict['pressure']['data']=pressure
+  valueDict['density']['data']=rho
+  valueDict['temperature']['data']=T
+  valueDict['specificVolume']['data']=specVol
+  valueDict['specificEntropy']['data']=s
+  valueDict['specificEnthalpy']['data']=h
+
+  if Dimless:
+    for key in valueDict.keys():
+      if 'id' in key:
+        continue
+      valueDict[key]['dim'] = '[-]'
+
+
+  # simplePlot('specificVolume', 'pressure', output_path, test_scalar)
+  # simplePlot('specificEntropy', 'temperature', output_path, test_scalar)
+  # simplePlot('specificEntropy', 'specificEnthalpy', output_path, test_scalar)
+  
+  fig, axs = plt.subplots(nrows=1, ncols=2, figsize=(9,2.5))
+  axs = axs.flatten()
+
+  print('plot quiver diagram')
+  pvHelper.quiverPlot('specificVolume', 'pressure', valueDict, axs[0], location, usetex=usetex)
+  pvHelper.quiverPlot('specificEntropy', 'temperature', valueDict, axs[1], location, usetex=usetex)
+
+  pvHelper.drawIsothermLine(50., 0.2, axs[0])
+  pvHelper.drawIsentropLine(50., 0.2, pv_class.gamma, axs[0])
+  
+  p0, v0 = pvHelper.findPressureRisingPoint(valueDict['pressure']['data'], valueDict['specificVolume']['data'])
+  pvHelper.drawHugoniotCurve(p0, v0, pv_class.gamma, axs[0])
+  pvHelper.drawIsentropLine(p0, v0, pv_class.gamma, axs[0])
+  
+  pvHelper.legend_without_duplicate_labels(axs[0])
+
+  ndig = 3
+  fig.suptitle('passive scalar number {} was in tube [{}, {}]; efficiency={}'.format(
+                                  test_scalar,
+                                  round(tube_passive_scalar_times['start'], ndig), 
+                                  round(tube_passive_scalar_times['stop'], ndig),
+                                  round(efficiency, ndig)
+                                ))
+  
+  figname = '{}/{}-quiver_{}-{}-Diagramm_tubeID{}'
+  if Dimless:
+    figname += '_Dimless'
+  figname +='.png'
+  fig.savefig(figname.format(output_path, str(test_scalar).zfill(5), 'pv', 'Ts', tube_id), bbox_inches='tight', dpi=600)

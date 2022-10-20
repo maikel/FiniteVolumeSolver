@@ -1,7 +1,9 @@
 import math
 
-tube_n_cells = 200 #256
-# plenum_x_n_cells = 128
+# tube and plena x_ncells are yet decoupled!!
+tube_n_cells = 256 # 192 256 320 384
+plenum_x_n_cells = 64
+
 tube_blocking_factor = 8
 plenum_blocking_factor = 32 #8
 
@@ -18,17 +20,8 @@ n_tubes = len(tube_y0s)
 r_tube = 0.015
 D = 2.0 * r_tube
 
-## InflowOptions for SEC Tube
-## this values influence the SEC mode and are set under Tubes Dict
-# fuel retardation time (controls how long the air buffer is)
-SEC_buffer = 0.06 # default value 0.06
-# maximum ignition delay time for the fuel
-SEC_tti = 1.2 # default value 1.2
-# minimum ignition delay time for the fuel
-SEC_timin = 0.1 # default value 0.1
-
 # parameter for the diffusorpart from the inflow tube
-diffusorStart = 0.0625 # start point x-axis
+diffusorStart = 1.0 * 0.25 # start point x-axis
 diffusorEnd = 0.75 # end point x-axis
 offset=-tube_length # tube begins at x=-1.0
 A0=1.0 # surface Area befor diffusor
@@ -40,11 +33,11 @@ magic_z_length = 1.0 # should be replaced when switch to 3d!!!
 # normally 3.0 * D # [m] # in old slanted case 10.0D
 inlet_length = 3.0 * D 
 
-plenum_y_lower = - 0.96
-plenum_y_upper = + 0.96
+plenum_y_lower = - 1.2
+plenum_y_upper = + 1.2
 plenum_y_length = plenum_y_upper - plenum_y_lower
 
-TVolRPlen = 2.* 20.0 * D #20.0 * D
+TVolRPlen = 1.0 * 20.0 * D #20.0 * D
 plenum_x_upper = TVolRPlen / plenum_y_length / magic_z_length
 plenum_x_lower = -inlet_length
 plenum_x_length = plenum_x_upper - plenum_x_lower
@@ -59,9 +52,9 @@ tube_domain_length = tube_length - inlet_length
 tube_over_plenum_length_ratio = tube_domain_length / plenum_domain_length
 plenum_over_tube_length_ratio = 1.0 / tube_over_plenum_length_ratio
 
-plenum_x_n_cells = tube_n_cells * plenum_over_tube_length_ratio
-plenum_x_n_cells -= plenum_x_n_cells % plenum_blocking_factor
-plenum_x_n_cells = int(plenum_x_n_cells)
+# plenum_x_n_cells = tube_n_cells * plenum_over_tube_length_ratio
+# plenum_x_n_cells -= plenum_x_n_cells % plenum_blocking_factor
+# plenum_x_n_cells = int(plenum_x_n_cells)
 
 plenum_z_lower = plenum_y_lower
 plenum_z_upper = plenum_y_upper
@@ -89,13 +82,12 @@ plenum_dz = plenum_z_length / plenum_z_n_cells
 
 # print(formatter.format('', 'ncells', 'length', 'delta_x'))
 # print(formatter.format('Tube_x', tube_n_cells, tube_domain_length, round(tube_dx, 5)))
-# print(formatter.format('plenum_x', plenum_x_n_cells, plenum_domain_length, round(plenum_dx, 5)))
+# print(formatter.format('plenum_x', plenum_x_n_cells, round(plenum_domain_length, 5), round(plenum_dx, 5)))
 # print(formatter.format('plenum_y', plenum_y_n_cells, plenum_y_length, round(plenum_dy, 5)))
 # print(formatter.format('plenum_z', plenum_z_n_cells, plenum_z_length, round(plenum_dz, 5)))
 
 
-# outputPath = 'test_oneTube_vol40_y0.48'
-outputPath = 'sec_vol{}_y{}_tx{}_px{}_py{}_xi0{}'.format(TVolRPlen/D, plenum_y_upper, tube_n_cells, plenum_x_n_cells, plenum_y_n_cells, diffusorStart)
+outputPath = 'defl_fullboundary_vol{}_y{}_tx{}_px{}_py{}_xi0_{}'.format(TVolRPlen/D, plenum_y_upper, tube_n_cells, plenum_x_n_cells, plenum_y_n_cells, diffusorStart)
 
 RunOptions = {
   'cfl': 0.1125,# / float(tube_n_cells / 64),
@@ -111,7 +103,7 @@ LogOptions = {
 
 InputFileOptions = {
   'copy_input_file' : 1,
-  'file_template': '{}/SEC_Plenum_Arrhenius_oneTube.py'.format(outputPath),
+  'file_template': '{}/{}'.format(outputPath, 'inputfile.py'),
 }
 
 FluxMethod = {
@@ -162,23 +154,31 @@ p0 = 2.0
 rho0 = math.pow(p0, 1.0 / gamma)
 T0 = p0 / rho0
 
+# used as initial parameters for 0d turbine
 p = 0.95 * p0
 # T = T0 + ArrheniusKinetics['Q'] * (gamma - 1.0)
-T = 11.290743302923245 # this value is used in Klein's Code
+# T = # 11.290743302923245 # this value is used in Klein's Code
+T = 8.0
 rho = p / T
 
 #-----------------------------------------------
 # checkpoint = '/srv/public/Maikel/FiniteVolumeSolver/build_2D-Debug/Checkpoint/000000005'
 checkpoint = ''
 
-def Area(xi, xi0=0.0625, xi1=0.75, offset=-1.0, A0=1.0, A1=4.0):
+# Tube Area function
+def Area(xi):
+  xi0 = diffusorStart
+  xi1 = diffusorEnd
+  
   xi0 += offset
   xi1 += offset # Reference: 0.5; best: 0.75
   Ax = 1.0 if xi < xi0 else A0 + (A1-A0)*(xi-xi0)/(xi1-xi0) if xi < xi1 else A1
   return Ax
 
-surface_area_SingleTube_inlet = Area(-1.0, xi0=diffusorStart, xi1=diffusorEnd, offset=offset, A0=A0, A1=A1)
-surface_area_SingleTube_outlet = Area(0.0, xi0=diffusorStart, xi1=diffusorEnd, offset=offset, A0=A0, A1=A1)
+# should be Tubes['GridGeometry']['coordinates']['lower'][0]
+surface_area_SingleTube_inlet = Area(-1.0)
+# should be Tubes['GridGeometry']['coordinates']['upper'][0]
+surface_area_SingleTube_outlet = Area(0.0)
 
 ControlOptions = {
   'Q': ArrheniusKinetics['Q'],
@@ -193,7 +193,7 @@ ControlOptions = {
   'surface_area_tube_outlet': (n_tubes * surface_area_SingleTube_outlet * D) / D,
   # Turbine volumes and surfaces
   'volume_turbine_plenum': TVolRPlen / D,
-  'surface_area_turbine_plenum_to_turbine': 4.0 * D / D,
+  # 'surface_area_turbine_plenum_to_turbine': plenum_y_length / D, # must be specified below!!!
   # Compressor volumes and surfaces
   'volume_compressor_plenum': TVolRPlen / D,
   'surface_area_compressor_to_compressor_plenum': (8.0 * D) / D,
@@ -265,22 +265,10 @@ Plenum = {
   },
   'FluxMethod': FluxMethod,
   'InletGeometries': [{
-    'r_start': 4.0 * r_tube,
-    'r_end': 4.0 * r_tube,
+    'r_start': surface_area_SingleTube_outlet * r_tube, # 4. * r_tube
+    'r_end': surface_area_SingleTube_outlet * r_tube, # 4. * r_tube
     'y_0': y_0,
   } for y_0 in tube_y0s],
-  'InitialCondition': {
-    'left': {
-      'density': rho,
-      'temperature': T,
-      'pressure': p
-    },
-    'right': {
-      'density': rho,
-      'temperature': T,
-      'pressure': p
-    },
-  }
 }
 
 
@@ -303,34 +291,32 @@ def PlenumCoarseAverageMirrorBox(y0):
   return BoxWhichContains_withGhostcells(DomainAroundPoint( GetCenterPoint(plenum_x_upper, y0), [0.0, -2.*D], [0.0, +2.*D]), 
             [1,0], [0, 0])
 
+def getLengthFromBox(Box, box_dx, dir=0):
+  lower = Box['lower'][dir]
+  upper = Box['upper'][dir]
+  boxLength = (upper - lower + 1)*box_dx # +1 due indexing
+  return boxLength
+
 Plenum[boundary_condition] = {
-  # 'boundary_section': { 
-  #   'lower': [plenum_x_n_cells, - Plenum_scratch_gcw, 0], 
-  #   'upper': [plenum_x_n_cells + Plenum_scratch_gcw - 1, plenum_y_n_cells + Plenum_scratch_gcw - 1, 0] 
-  #   },
-  'boundary_section': PlenumBoundaryBox(plenum_y_midpoint),
+  'boundary_section': { 
+    'lower': [plenum_x_n_cells, - Plenum_scratch_gcw, 0], 
+    'upper': [plenum_x_n_cells + Plenum_scratch_gcw - 1, plenum_y_n_cells + Plenum_scratch_gcw - 1, 0] 
+    },
+  # 'boundary_section': PlenumBoundaryBox(plenum_y_midpoint),
   'mode': mode,
-  # 'coarse_average_mirror_box': {
-  #   'lower': [plenum_x_n_cells - 1, 0, 0],
-  #   'upper': [plenum_x_n_cells - 1, plenum_y_n_cells - 1, 0]
-  # },
-  'coarse_average_mirror_box': PlenumCoarseAverageMirrorBox(plenum_y_midpoint),
-  'relative_surface_area': ControlOptions['surface_area_turbine_plenum_to_turbine'], 
+  'coarse_average_mirror_box': {
+    'lower': [plenum_x_n_cells - 1, 0, 0],
+    'upper': [plenum_x_n_cells - 1, plenum_y_n_cells - 1, 0]
+  },
+  #'coarse_average_mirror_box': PlenumCoarseAverageMirrorBox(plenum_y_midpoint),
+  # 'relative_surface_area': ControlOptions['surface_area_turbine_plenum_to_turbine'], # specify below!!!
   'massflow_correlation': 0.06 * 4.0,
 }
 
-# print("boundary section:")
-# print(PlenumBoundaryBox(plenum_y_midpoint))
-# print("should be: ")
-# print(Plenum[boundary_condition][0]['boundary_section'])
-# print()
-
-# print("coarse_average_mirror_box:")
-# print(PlenumCoarseAverageMirrorBox(plenum_y_midpoint))
-# print("should be: ")
-# print(Plenum[boundary_condition][0]['coarse_average_mirror_box'])
-# print()
-
+# get len of coarse_average_mirror_box and write in Dicts!!
+CAMB_len = getLengthFromBox(Plenum[boundary_condition]['coarse_average_mirror_box'], plenum_dy, dir=1)
+ControlOptions['surface_area_turbine_plenum_to_turbine'] = CAMB_len / D
+Plenum[boundary_condition]['relative_surface_area'] = ControlOptions['surface_area_turbine_plenum_to_turbine']
 
 # get Mirrorbox for each Tube where they are connected with the plenum
 def PlenumMirrorBox(y0):
@@ -367,11 +353,6 @@ Tubes = [{
     'scratch_gcw': 6,
     'flux_gcw': 2,
   },
-  'InflowOptionsSEC' : {
-    'SEC_buffer': SEC_buffer,
-    'SEC_tti': SEC_tti,
-    'SEC_timin': SEC_timin,
-  }
 } for (i, y_0) in enumerate(tube_y0s)]
 
 tube_intervals = 0.005

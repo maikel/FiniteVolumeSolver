@@ -1,5 +1,6 @@
 import numpy as np
 import os
+import glob
 from datetime import datetime
 
 def maskPlenumCutCells(data, vfrac, vfracOffset=1.0e-14):
@@ -65,7 +66,7 @@ def printSimpleStatsTubeData(data, variable, times, tube_id=0, ndig=4, output_pa
         f.write(format_row.format(*row)+"\n")
   print()
 
-def printSimpleStatsPlenumSingleTimepoint(data, variable, time, ndig=8, output_path="", firstCall=False):
+def printSimpleStatsPlenumSingleTimepoint(data, variable, time, ndig=10, output_path="", FIRSTCALL=False, PARALLEL=False, SYMMETRYCHECK=False):
   """
   Print out simple Stats from given Arrays.
   Shape must be (NCellsX, NCellsY, (NCellsZ))
@@ -82,24 +83,32 @@ def printSimpleStatsPlenumSingleTimepoint(data, variable, time, ndig=8, output_p
                 maximal number of decimal digits for output
     output_path: string, optional
                  optional write out all stats in file
-    firstCall:  bool, optional
+    FIRSTCALL:  bool, optional
                 rename old file if any, write header in new file
+    PARALLEL:   bool, optional
+                other output filename in case of parallel processing
+    SYMMETRYCHECK: bool, optional
+                   Test if data is symmetric in y side
   """
   if output_path:
     if 'Plenum' in output_path:
       fname = os.path.join( output_path.split('Plenum')[0], "Plenum_{}_stats.dat".format(variable) )
     else:
       fname = os.path.join( output_path, "Plenum_{}_stats.dat".format(variable) )
-    if firstCall:
+    if PARALLEL:
+      fname = fname[:-4]+'_unorderd'+fname[-4:] # insert unorderd hint in fname!!
+    if FIRSTCALL:
       if os.path.isfile(fname): # if file exists, rename it
         date = datetime.now().strftime("%Y_%m_%d-%I:%M:%S_%p")
         newName = fname.split('.dat')[0]+"_{}.dat".format(date)
         print("renamed old File '{}' to '{}'".format(fname, newName))
         os.rename(fname, newName)
       header = ['time', 'min', 'mean', 'median', 'std', 'max']
+      if SYMMETRYCHECK:
+        header+=['symmetry']
       format_row = '#{:>17}'+'{:>18}'*(len(header)-1)
       with open(fname, 'w') as f:
-        f.write(format_row.format(*header)+"\n")
+        f.write(format_row.format(*header))
       return None
   
   if np.ma.is_masked(data):
@@ -112,11 +121,59 @@ def printSimpleStatsPlenumSingleTimepoint(data, variable, time, ndig=8, output_p
     indices_max = np.unravel_index(np.argmax(data, axis=None), data.shape)
     stats_data = [time, data[indices_min], np.mean(data), np.median(data), np.std(data), data[indices_max]]
   
-  stats_data = [el if isinstance(el, str) else round(el, ndig) for el in stats_data]
-  
+  # stats_data = [el if isinstance(el, str) else round(el, ndig) for el in stats_data]
+  stats_data = [round(el, ndig) for el in stats_data]
+
+  if SYMMETRYCHECK:
+    # print('Symmetrycheck')
+    ncellsy, ncellsx = data.shape
+    if ncellsy%2:
+        # print('odd case')
+        raise NotImplementedError('odd case in Symmetrycheck is not implemented yet')
+        # odd case
+        ## symmetry axis is on cell faces
+    else:
+        # even case 
+        ## symmetry axis is between cells
+        upperPart = data[:ncellsy//2,:]
+        lowerPart = data[ncellsy//2:,:]
+        lowerPart = np.flip(lowerPart, axis=0)
+        # print(upperPart.shape)
+        # print(lowerPart.shape)
+        symmetryTest = np.ma.allclose(upperPart, lowerPart)
+        # print(symmetryTest)
+        # print(upperPart[0,:])
+        # print(lowerPart[0,:])
+    stats_data.append(symmetryTest)
+      
   format_row = '{:>18}'*len(stats_data)
   # print(format_row.format(*stats_data))
   if output_path:
     with open(fname, 'a') as f:
-      f.write(format_row.format(*stats_data)+"\n")
+      f.write("\n"+format_row.format(*stats_data))
+  else:
+    print(format_row.format(*stats_data))
   # print()
+
+def sortSimpleStatsPlenum(path):
+  """
+  Sort Plenumstats written from parallel executed function printSimpleStatsPlenumSingleTimepoint(**args).
+  The files '*_unorderd.dat' will be deleted after execution.
+  
+  Parameters
+  ----------------------------------------
+    path:       string
+                the directory path where the files are located
+  """
+  fnames = glob.glob(path+'*unorderd.dat')
+  # print(fnames)
+  for fname in fnames:
+    if not os.path.isfile(fname):
+        raise FileNotFoundError()
+    with open(fname) as f:
+        header = f.readline()[3:] # remove '#  '
+    dat = np.loadtxt(fname, skiprows=1)
+    ind = np.argsort( dat[:,0] ) # sort times col
+    dat = dat[ind] # sort with this indices data
+    np.savetxt(''.join(fname.split('_unorderd')), dat, header=header, fmt='%1.11e')
+    os.remove(fname)
