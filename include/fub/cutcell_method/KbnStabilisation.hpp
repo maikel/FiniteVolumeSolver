@@ -234,12 +234,13 @@ void KbnCutCellMethod<FM, RiemannSolver>::ComputeBoundaryFlux(
     Rotate(solution_, solution_, MakeRotation(unit, boundary_normal), equation);
   }
   const int d = static_cast<int>(dir);
-  const double u_advective =
-      reference_state.momentum[d] / reference_state.density;
-  const double u_solution = solution_.momentum[d] / solution_.density;
+  // const double u_advective =
+  //     reference_state.momentum[d] / reference_state.density;
+  // const double u_solution = solution_.momentum[d] / solution_.density;
   flux.momentum[d] += solution_.pressure - reference_state.pressure;
-  flux.energy +=
-      u_solution * solution_.pressure - u_advective * reference_state.pressure;
+  // This is wrong and destroys conservation for energy
+  // flux.energy +=
+  //     u_solution * solution_.pressure - u_advective * reference_state.pressure;
 }
 
 template <typename FM, typename RiemannSolver>
