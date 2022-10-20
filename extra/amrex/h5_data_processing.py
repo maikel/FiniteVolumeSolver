@@ -66,7 +66,7 @@ def printSimpleStatsTubeData(data, variable, times, tube_id=0, ndig=4, output_pa
         f.write(format_row.format(*row)+"\n")
   print()
 
-def printSimpleStatsPlenumSingleTimepoint(data, variable, time, ndig=14, output_path="", FIRSTCALL=False, PARALLEL=False, SYMMETRYCHECK=False):
+def printSimpleStatsPlenumSingleTimepoint(data, variable, time, ndig=10, output_path="", FIRSTCALL=False, PARALLEL=False, SYMMETRYCHECK=False):
   """
   Print out simple Stats from given Arrays.
   Shape must be (NCellsX, NCellsY, (NCellsZ))
